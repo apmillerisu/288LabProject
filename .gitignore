@@ -1,6 +1,56 @@
-composer.phar
-/vendor/
+# For any students opening this file out of curiosity:
+# A `.gitignore` file tells Git which files and folders to ignore when tracking changes.
+# This helps keep the repository clean by excluding unnecessary or environment-specific files,
+# such as temporary files, IDE configurations, and build outputs.
+#
+# Feel free to learn more about `.gitignore` at: https://git-scm.com/docs/gitignore
+#
+# ~~~Your TA's
 
-# Commit your application's lock file https://getcomposer.org/doc/01-basic-usage.md#commit-your-composer-lock-file-to-version-control
-# You may choose to ignore a library lock file http://getcomposer.org/doc/02-libraries.md#lock-file
-# composer.lock
+
+
+# Ignore JxBrower Userdata Everywhere
+.jxBrowser.userdata/
+**/.jxBrowser.userdata/
+
+# Ignore workspace metaadata
+.metadata/
+**/.metadata/
+
+# Ignore temporary and generated files
+.tempFiles/
+*.log
+*.bak
+*.swp
+*.tmp
+.DS_Store
+Thumbs.db
+
+# Ignore CCS/Eclipse-specific files
+.cproject
+.ccsproject
+.project
+.settings/
+**/targetConfigs/
+
+# Ignore build and output directories
+**/Debug/
+**/Release/
+*.out
+*.elf
+*.d
+*.obj
+*.map
+*.bin
+*.hex
+
+# Ignore Remote System temp files
+RemoteSystemsTempFiles/
+**/RemoteSystemsTempFiles/
+
+# Ignore Design and Verification Tools folder
+dvt/
+
+# Ignore launch configuration files
+**/*.launch
+**/.launches
