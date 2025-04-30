@@ -7,7 +7,7 @@
 #include "Timer.h"
 #include "lcd.h"
 #include "ping_template.h"
-#include "uart.h"
+#include "uart-interrupt.h"
 #include "servo.h"
 #include "adc.h"
 #include "button.h"
@@ -19,14 +19,15 @@
 #warning "Possible unimplemented functions"
 #define REPLACEME 0
 extern volatile int command_flag;
-extern char receiveByte;
+extern volatile char receiveByte = '\0';
 //int rightCalVal;
 //int leftCalVal;
 
 int main(void) {
 	timer_init(); // Must be called before lcd_init(), which uses timer functions
 	lcd_init();
-	uart_init(); // or uart_interrupt_init(); for interrupt version (likely for manual movement)
+	//uart_init(); // or uart_interrupt_init(); for interrupt version (likely for manual movement)
+	uart_interrupt_init(); 
 	ping_init();
 	button_init();
 	servo_init();
