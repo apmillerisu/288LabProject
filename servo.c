@@ -60,73 +60,48 @@ void turnDegree(int degree) {
     TIMER1_TBMATCHR_R = target_matchVal & 0xFFFF;
 }
 
-//needs work
-servo_cal_t servoCal(void) {
-    servo_cal_t result = {rightCalVal, leftCalVal}; // Use current static values as start
+servo_cal_t servoCal(void){
     uint8_t button;
-    int currentMatchVal; // Use this instead of currentDegree for adjustment
-    int adjusting_limit = 0; // 0 for 0deg (Right), 1 for 180deg (Left)
-    const int STEP_SIZE = 500; // How much to change matchVal per button press
+    servo_cal_t result = {rightCalVal, leftCalVal};
+    uint32_t matchVal = TIMER1_TBPMR_R<<16;
+    matchVal += TIMER1_TBMATCHR_R;
+    int step = 500; // amount to change matchval
+    int calSide = 0;//0 for right side, 1 for left
 
-    button_init();
-    lcd_init(); // Assuming these are needed here
+    lcd_printf("Adj to right\nB1(L)/B2(R):Adj\nB4:Save Match");
 
-    // Start adjusting for the 0-degree (Right) position
-    currentMatchVal = 0x48440; // Start with the current/default 0-deg match value
-    // Set initial servo position
-    TIMER1_TBPMR_R = currentMatchVal >> 16;
-    TIMER1_TBMATCHR_R = currentMatchVal & 0xFFFF;
-    timer_waitMillis(500); // Wait for servo to move initially
-
-    lcd_printf("Adj 0 deg (R)\nB1(L)/B2(R):Adj\nB4:Save Match");
-
-    while (1) {
+    while(1){
         button = button_getButton();
 
-        if (button == 1) { // Move Left (Towards 180 -> Lower Match Value)
-            currentMatchVal -= STEP_SIZE;
-            // Optional: Add clamping to prevent extreme match values if needed
-            // if (currentMatchVal < MIN_POSSIBLE_MATCH) currentMatchVal = MIN_POSSIBLE_MATCH;
 
-            // *** Update Timer Registers ***
-            TIMER1_TBPMR_R = currentMatchVal >> 16;
-            TIMER1_TBMATCHR_R = currentMatchVal & 0xFFFF;
-            timer_waitMillis(30); // Small delay
+        if(button == 1){
+            matchVal -= step;
+            TIMER1_TBPMR_R = matchVal >> 16;
+            TIMER1_TBMATCHR_R = matchVal & 0xFFFF;
+            timer_waitMillis(100);
 
-        } else if (button == 2) { // Move Right (Towards 0 -> Higher Match Value)
-            currentMatchVal += STEP_SIZE;
-            //test comment
-            // Optional: Add clamping
-            // if (currentMatchVal > MAX_POSSIBLE_MATCH) currentMatchVal = MAX_POSSIBLE_MATCH;
+        } else if(button == 2){
+            matchVal += step;
+            TIMER1_TBPMR_R = matchVal >> 16;
+            TIMER1_TBMATCHR_R = matchVal & 0xFFFF;
+            timer_waitMillis(100);
 
-            // *** Update Timer Registers ***
-            TIMER1_TBPMR_R = currentMatchVal >> 16;
-            TIMER1_TBMATCHR_R = currentMatchVal & 0xFFFF;
-            timer_waitMillis(30); // Small delay
-
-        } else if (button == 4) { // Save current match value
-            if (adjusting_limit == 0) { // Saving 0-degree (Right) limit
-                // *** Save the currentMatchVal directly ***
-                result.match_0_deg = currentMatchVal;
-                adjusting_limit = 1; // Switch to adjust 180-degree limit
-
-                // Move servo to the current/default 180-deg position to start adjustment
-                //currentMatchVal = 0.0015 * 16000000;
-                TIMER1_TBPMR_R = currentMatchVal >> 16;
-                TIMER1_TBMATCHR_R = currentMatchVal & 0xFFFF;
-                timer_waitMillis(500); // Wait for servo move
-
-                lcd_printf("Adj 180 deg (L)\nB1(L)/B2(R):Adj\nB4:Save & Exit");
-
-            } else { // Saving 180-degree (Left) limit
-                 // *** Save the currentMatchVal directly ***
-                result.match_180_deg = currentMatchVal;
-                lcd_printf("Cal Done:\n0d:%d\n180d:%d", result.match_0_deg, result.match_180_deg);
-                timer_waitMillis(2000);
-                break; // Exit calibration loop
+        } else if(button == 4){
+            if(calSide == 0){
+                calSide = 1;
+                rightCalVal = matchVal;
+                result.rightVal = rightCalVal;
+                lcd_printf("Adj to left\nB1(L)/B2(R):Adj\nB4:Save Match");
+                timer_waitMillis(200);
+            } else {
+                leftCalVal = matchVal;
+                result.leftVal = leftCalVal;
+                lcd_printf("calibration done\nRight: %d\nLeft: %d", rightCalVal, leftCalVal);
+                break;
             }
         }
-        timer_waitMillis(20); // Button debounce delay
     }
-    return result; // Return the struct containing the two found match values
+
+
+    return result;
 }

@@ -20,19 +20,24 @@
 #define REPLACEME 0
 extern volatile int command_flag;
 extern char receiveByte;
-int rightCalVal;
-int leftCalVal;
+//int rightCalVal;
+//int leftCalVal;
 
 int main(void) {
 	timer_init(); // Must be called before lcd_init(), which uses timer functions
 	lcd_init();
 	uart_init(); // or uart_interrupt_init(); for interrupt version (likely for manual movement)
 	ping_init();
+	button_init();
 	servo_init();
-    servoCal();
-    return 0;
+	rightCalVal = 312500;
+	leftCalVal = 285500;
+//    servoCal();
+//    return 0;
     oi_t *sensor_data = oi_alloc();
     oi_init(sensor_data);
+
+    setup_ice_cream_jingle();
 
 	// YOUR CODE HERE
 	int botByte;
@@ -42,7 +47,7 @@ int main(void) {
 	float distance;
 	char distString[100];
 
-
+	trigger_ice_cream_jingle();
 
     turnDegree(45);
     timer_waitMillis(100);
@@ -54,7 +59,7 @@ int main(void) {
 
 	for(i = 0; i<180; i+=2){
 	    turnDegree(i);
-	    timer_waitMillis(200);
+	    timer_waitMillis(100);
 	}
 
 	//turnDegree(170);
@@ -74,5 +79,7 @@ int main(void) {
 //        }
 //
 //	}
+
+	oi_free(sensor_data);
 
 }

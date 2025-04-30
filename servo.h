@@ -20,12 +20,11 @@ int leftCalVal;
 
 // Structure to hold calibration results
 typedef struct {
-    int match_0_deg;
-    int match_180_deg;
+    int rightVal;
+    int leftVal;
 } servo_cal_t;
 
 void servo_init(void);
-void servo_set_calibration(int match_0, int match_180); // New function
 servo_cal_t servoCal(void); // Modified return type
 void turnDegree(int degree); // Simplified prototype
 
