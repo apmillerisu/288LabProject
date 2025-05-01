@@ -25,7 +25,7 @@ volatile int command_flag = 0; // flag to tell the main program a special comman
 char receiveByte = 0;
 
 void uart_interrupt_init(void){
-	//TODO
+    //TODO
  //enable clock to GPIO port B
  SYSCTL_RCGCGPIO_R |= BIT2;
 
@@ -101,30 +101,30 @@ void uart_interrupt_init(void){
 }
 
 void uart_sendChar(char data){
-	//TODO
-   while(UART1_FR_R & 0x20){
-   }
+    //TODO
+    while(UART1_FR_R & 0x20){
+    }
 
-   UART1_DR_R = data;
+    UART1_DR_R = data;
 }
 
 char uart_receive(void){
-	//DO NOT USE this busy-wait function if using RX interrupt
-   char data = 0;
+    //DO NOT USE this busy-wait function if using RX interrupt
+    char data = 0;
 
-    while(UART1_FR_R & UART_FR_RXFE){
-    }
-    data = (char)(UART1_DR_R & 0xFF);
+     while(UART1_FR_R & UART_FR_RXFE){
+     }
+     data = (char)(UART1_DR_R & 0xFF);
 
-    return data;
+     return data;
 }
 
 void uart_sendStr(const char *data){
-	//TODO for reference see lcd_puts from lcd.c file
-   while(*data != '\0'){
-       uart_sendChar(*data);
-       data++;
-   }
+    //TODO for reference see lcd_puts from lcd.c file
+    while(*data != '\0'){
+        uart_sendChar(*data);
+        data++;
+    }
 }
 
 // Interrupt handler for receive interrupts
@@ -152,10 +152,23 @@ void UART1_Handler(void)
        else if (byte_received == 'g'){
            //receiveChar = byte_received;
            receiveByte = 'g';
-           //command_flag = 2;
+           command_flag = 1;
        }
        else if(byte_received == 's'){
            command_flag = 1;
+           receiveByte = 's';
+       }
+       else if (byte_received == 'w'){
+           command_flag = 1;
+           receiveByte = 'w';
+       }
+       else if (byte_received == 'a'){
+           command_flag = 1;
+           receiveByte = 'a';
+       }
+        else if (byte_received == 'd'){
+           command_flag = 1;
+           receiveByte = 'd';
        }
        else {
 
