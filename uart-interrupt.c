@@ -22,7 +22,7 @@
 // These variables are declared as examples for your use in the interrupt handler.
 volatile char command_byte = -1; // byte value for special character used as a command
 volatile int command_flag = 0; // flag to tell the main program a special command was received
-char receiveByte = 0;
+volatile char receiveByte = 0;
 
 void uart_interrupt_init(void){
     //TODO
@@ -170,7 +170,15 @@ void UART1_Handler(void)
            command_flag = 1;
            receiveByte = 'd';
        }
-       else {
+        else if (byte_received == 'm'){ // Add case for scan
+            receiveByte = 'm';
+            command_flag = 1;
+        }
+        else if (byte_received == 'j'){ // Add case for play song/jingle
+            receiveByte = 'j';
+            command_flag = 1;
+        }
+        else {
 
            //AS NEEDED
            //code to handle any other special characters

@@ -1,0 +1,9 @@
+"./Timer.obj"
+"./adc.obj"
+"./lab9_template.obj"
+"./lcd.obj"
+"./ping_template.obj"
+"./tm4c123gh6pm_startup_ccs.obj"
+"./uart.obj"
+"../tm4c123gh6pm.cmd"
+-llibc.a

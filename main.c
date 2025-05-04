@@ -7,6 +7,7 @@
 #include "button.h"
 #include "open_interface.h"
 #include "movement.h"
+#include "iceCreamSong.h"
 #include <string.h> // For string manipulation
 #include <stdio.h>  // For sprintf()
 
@@ -15,7 +16,7 @@
 #warning "Possible unimplemented functions"
 #define REPLACEME 0
 extern volatile int command_flag;
-extern volatile char receiveByte = '\0';
+extern volatile char receiveByte;
 //int rightCalVal;
 //int leftCalVal;
 
@@ -48,13 +49,18 @@ int main(void) {
     timer_init();
     lcd_init();
     uart_interrupt_init(); // Use interrupt-driven UART
+    adc_init();
     ping_init();
     button_init();
     servo_init();
+    receiveByte = '\0';
 
     // Servo calibration values (adjust as needed)
-    rightCalVal = 312500;
-    leftCalVal = 285500;
+    rightCalVal = 313000; //2041-1
+    leftCalVal = 285000; //2041-1
+
+//    servoCal();
+//    return 0;
 
     // Initialize iRobot OI
     oi_t *sensor_data = oi_alloc();
@@ -72,22 +78,21 @@ int main(void) {
     int ir_raw_value; // To store the raw IR ADC value
 
     // Play jingle (optional)
-    trigger_ice_cream_jingle();
+    //trigger_ice_cream_jingle();
 
-    // Example of using movement functions
-     turnDegree(45);
-     timer_waitMillis(1000);
-     turnDegree(135);
-     timer_waitMillis(1000);
-     turnDegree(0);
-     timer_waitMillis(500);
+//    // Example of using movement functions
+//     turnDegree(45);
+//     timer_waitMillis(1000);
+//     turnDegree(135);
+//     timer_waitMillis(1000);
+//     turnDegree(0);
+//     timer_waitMillis(500);
 
 
     // Main control loop
     while (1) {
         // 1. Get sensor data
         oi_update(sensor_data);
-        distance = ping_getDistance();
 
         // 2. Send sensor data to the PC
         send_sensor_data(sensor_data, distance);
@@ -107,18 +112,19 @@ int main(void) {
                     send_message("Moving backward");
                     break;
                 case 'a': // Turn left
-                    turn_left(sensor_data, 90);
+                    turn_left(sensor_data, 30);
                     send_message("Turning left");
                     break;
                 case 'd': // Turn right
-                    turn_right(sensor_data, 90);
+                    turn_right(sensor_data, 30);
                     send_message("Turning right");
                     break;
                 case 'm': // Perform a scan
+                //something is causing issues. it is not scanning when m is pressed
                     send_message("Starting scan");
-                    for (i = 0; i < 180; i += 10) { // Scan from 0 to 180 degrees, 10-degree steps
+                    for (i = 0; i < 180; i += 2) { // Scan from 0 to 180 degrees, 10-degree steps
                         turnDegree(i);
-                        timer_waitMillis(500); // Wait for servo to settle
+                        timer_waitMillis(100); // Wait for servo to settle
                         distance = ping_getDistance();
                         // Get IR sensor value (assuming you have adc_read() or similar)
                         // ir_raw_value = adc_read();  // Replace with your actual ADC read function
@@ -128,7 +134,7 @@ int main(void) {
                     }
                     send_message("Scan complete");
                     break;
-                 case 'p':  //play ice cream song
+                 case 'j':  //play ice cream song
                     trigger_ice_cream_jingle();
                     send_message("Playing ice cream song");
                     break;
@@ -159,4 +165,3 @@ int main(void) {
     oi_free(sensor_data);
     return 0;
 }
-
