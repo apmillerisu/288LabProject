@@ -8,7 +8,9 @@
 #include "open_interface.h"
 #include "lcd.h"
 
+
 static double current_heading = 90.0;
+volatile int stopFlag = 0;
 
 double get_current_heading(void) {
     // Normalize to [0, 360)
@@ -20,6 +22,8 @@ double get_current_heading(void) {
 }
 
 double move_forward (oi_t *sensor_data, double distance_mm){
+    uint16_t HOLE_THRESHOLD = 400; // Hole threshold
+    uint16_t BORDER_THRESHOLD = 2600; //border threshold
     double sum = 0;
 
     oi_setWheels(200,200);
@@ -30,6 +34,29 @@ double move_forward (oi_t *sensor_data, double distance_mm){
         lcd_printf("distance completed: %f mm", sum);
         if(sensor_data -> bumpLeft || sensor_data -> bumpRight){
             break;
+        } else if (sensor_data->cliffLeftSignal < HOLE_THRESHOLD ||
+            sensor_data->cliffFrontLeftSignal < HOLE_THRESHOLD ||
+            sensor_data->cliffFrontRightSignal < HOLE_THRESHOLD ||
+            sensor_data->cliffRightSignal < HOLE_THRESHOLD)
+        {
+             oi_setWheels(0, 0); // Stop
+             break;
+             //stopFlag = 1;
+             //send_message("Cliff Hole Detected! Stopped.");
+             // Optional: Add backup/turn logic here
+
+        } // if any cliff sensor is above border threshold
+        else if (sensor_data->cliffLeftSignal > BORDER_THRESHOLD ||
+                sensor_data->cliffFrontLeftSignal > BORDER_THRESHOLD ||
+                sensor_data->cliffFrontRightSignal > BORDER_THRESHOLD ||
+                sensor_data->cliffRightSignal > BORDER_THRESHOLD)
+        {
+           oi_setWheels(0, 0); // Stop
+           break;
+//           stopFlag = 1;
+//           send_message("Cliff Border Detected! Stopped.");
+//        } else {
+//            stopFlag = 0;
         }
     }
 

@@ -177,6 +177,9 @@ void UART1_Handler(void)
         else if (byte_received == 'j'){ // Add case for play song/jingle
             receiveByte = 'j';
             command_flag = 1;
+        } else if (byte_received == 'l'){ // Add case for play song/jingle
+            receiveByte = 'l';
+            command_flag = 1;
         }
         else {
 
