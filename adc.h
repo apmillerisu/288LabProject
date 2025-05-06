@@ -13,5 +13,6 @@
 
 void adc_init(void);
 int get_ADC(void);
+int get_avgADC(int);
 
 #endif /* ADC_H_ */

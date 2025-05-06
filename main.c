@@ -58,7 +58,7 @@ void send_message(const char *message) {
 
 int checkBotSensors(oi_t *sensor_data){
     uint16_t HOLE_THRESHOLD = 400; // Hole threshold
-    uint16_t BORDER_THRESHOLD = 3000; //border threshold
+    uint16_t BORDER_THRESHOLD =  2600; //border threshold
     int stopFlag = 0;
 
     if (sensor_data->bumpLeft || sensor_data->bumpRight) {
@@ -107,11 +107,16 @@ int main(void) {
     servo_init();
     receiveByte = '\0';
 
+    lcd_printf("Get some ice cream");
+
     // Servo calibration values (adjust as needed)
 //    rightCalVal = 313000; //2041-1
 //    leftCalVal = 285000; //2041-1
-    rightCalVal = 311500; //2041-15
-    leftCalVal = 283500; //2041-15
+//    rightCalVal = 311500; //2041-15
+//    leftCalVal = 283500; //2041-15
+    rightCalVal = 311500; //2041-0
+    leftCalVal = 284500; //2041-0
+
 
 //    servoCal();
 //    return 0;
@@ -184,7 +189,7 @@ int main(void) {
                         // Get IR sensor value (assuming you have adc_read() or similar)
                         // ir_raw_value = adc_read();  // Replace with your actual ADC read function
                          //For simplicity, let's assume  ir_raw_value is between 0-4095
-                        ir_raw_value = get_ADC();
+                        ir_raw_value = get_avgADC(2);
                         send_scan_data(i, distance, ir_raw_value); // Send scan data
                     }
                     send_message("Scan complete");

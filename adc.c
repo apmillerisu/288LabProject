@@ -48,3 +48,15 @@ int get_ADC(void){
 //
 //}
 
+int get_avgADC(int avgNum){
+    int sum = 0;
+    int i = 0;
+    for(i = 0; i<avgNum; i++){
+    sum += get_ADC();
+    }
+
+    int avgIR = sum / avgNum;
+
+    return avgIR;
+}
+

@@ -23,7 +23,7 @@ double get_current_heading(void) {
 
 double move_forward (oi_t *sensor_data, double distance_mm){
     uint16_t HOLE_THRESHOLD = 400; // Hole threshold
-    uint16_t BORDER_THRESHOLD = 3000; //border threshold
+    uint16_t BORDER_THRESHOLD = 2600; //border threshold
     double sum = 0;
 
     oi_setWheels(200,200);
@@ -31,7 +31,7 @@ double move_forward (oi_t *sensor_data, double distance_mm){
     while(sum < distance_mm){
         oi_update(sensor_data);
         sum += sensor_data -> distance;
-        lcd_printf("distance completed: %f mm", sum);
+        //lcd_printf("distance completed: %f mm", sum);
         if(sensor_data -> bumpLeft || sensor_data -> bumpRight){
             break;
         } else if (sensor_data->cliffLeftSignal < HOLE_THRESHOLD ||

@@ -36,22 +36,22 @@ OBJECT_MIN_POINTS = 3 # Minimum consecutive points to form an object
 OBJECT_EDGE_THRESHOLD_CM = 15.0 # Min distance change (cm) to detect edge (Currently PING-related, not used in IR logic below)
 
 # ---vvv--- MODIFIED/NEW IR DETECTION CONSTANTS ---vvv---
-IR_MIN_STRENGTH_FOR_CONSIDERATION = 600 # Minimum average IR value to consider a point part of an object. Tune this!
+IR_MIN_STRENGTH_FOR_CONSIDERATION = 750 # Minimum average IR value to consider a point part of an object. Tune this!
                                         # If objects have IR ~500, lower this to ~450-500.
-IR_EDGE_THRESHOLD_RISE = 300      # Minimum IR value increase (current_ir - prev_ir) to detect a rising edge.
+IR_EDGE_THRESHOLD_RISE = 300    # Minimum IR value increase (current_ir - prev_ir) to detect a rising edge.
 IR_EDGE_THRESHOLD_DROP = 250      # Minimum IR value decrease (prev_ir - current_ir) to detect a falling edge.
 DEBUG_OBJECT_DETECTION = True     # Set to True to get print statements for debugging object detection logic.
 # ---^^^--- MODIFIED/NEW IR DETECTION CONSTANTS ---^^^---
 
 
 # --- Add these near other constants ---
-IR_MIN_RAW = 500.0  # Raw value considered "far" for plotting on radar
-IR_MAX_RAW = 2500.0 # Raw value considered "close" for plotting on radar
-IR_VALID_MIN = 100   # Minimum raw value to consider plotting on radar (avoids plotting noise)
+IR_MIN_RAW = 400  # Raw value considered "far" for plotting on radar
+IR_MAX_RAW = 1500.0 # Raw value considered "close" for plotting on radar
+IR_VALID_MIN = 50   # Minimum raw value to consider plotting on radar (avoids plotting noise)
 # IR_MIN_STRENGTH_FOR_CONSIDERATION was moved up
 
 # Cliff Color Thresholds
-WHITE_THRESHOLD = 3000
+WHITE_THRESHOLD = 2600
 BLACK_THRESHOLD = 500
 
 # --- Global Variables ---
