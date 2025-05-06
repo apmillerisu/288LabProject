@@ -24,23 +24,29 @@ CMD_IGNORE = "l\n"
 # Map and Trail Constants
 MAP_SCALE = 2.0 # pixels / cm (e.g., 1 meter = 100 cm = 200 pixels)
 ROBOT_RADIUS_PIXELS = 15 # Approximate visual size on map
-ROBOT_REAL_RADIUS_CM = 33.0
-SENSOR_FORWARD_OFFSET_CM = 30.0 # Distance sensor is forward from robot center (e.g., 30cm). Adjust as needed.
+ROBOT_REAL_RADIUS_CM = 15
+SENSOR_FORWARD_OFFSET_CM = 5 # Distance sensor is forward from robot center (e.g., 30cm). Adjust as needed.
 
 # Object Detection Constants (Tune these)
 OBJECT_MAX_DIST_CM = 250.0 # Ignore points further than this for object detection
 OBJECT_MIN_ANGLE_WIDTH_DEG = 6.0 # Minimum angular size to be considered an object
 OBJECT_MIN_POINTS = 3 # Minimum consecutive points to form an object
-# ---vvv--- LOWERED THRESHOLD ---vvv---
-OBJECT_EDGE_THRESHOLD_CM = 15.0 # Min distance change (cm) to detect edge (Lowered from 30)
-IR_EDGE_THRESHOLD = 300
-# --- Add these near other constants ---
-IR_MIN_RAW = 500.0  # Raw value considered "far" for plotting
-IR_MAX_RAW = 2500.0 # Raw value considered "close" for plotting
-IR_VALID_MIN = 100   # Minimum raw value to consider plotting (avoids plotting noise)
-IR_MIN_STRENGTH_FOR_CONSIDERATION = 650 # New: Minimum average IR value to consider a PING segment a plotted object. Tune this!
-# ---^^^--- LOWERED THRESHOLD ---^^^---
+OBJECT_EDGE_THRESHOLD_CM = 15.0 # Min distance change (cm) to detect edge (Currently PING-related, not used in IR logic below)
 
+# ---vvv--- MODIFIED/NEW IR DETECTION CONSTANTS ---vvv---
+IR_MIN_STRENGTH_FOR_CONSIDERATION = 600 # Minimum average IR value to consider a point part of an object. Tune this!
+                                        # If objects have IR ~500, lower this to ~450-500.
+IR_EDGE_THRESHOLD_RISE = 300      # Minimum IR value increase (current_ir - prev_ir) to detect a rising edge.
+IR_EDGE_THRESHOLD_DROP = 250      # Minimum IR value decrease (prev_ir - current_ir) to detect a falling edge.
+DEBUG_OBJECT_DETECTION = True     # Set to True to get print statements for debugging object detection logic.
+# ---^^^--- MODIFIED/NEW IR DETECTION CONSTANTS ---^^^---
+
+
+# --- Add these near other constants ---
+IR_MIN_RAW = 500.0  # Raw value considered "far" for plotting on radar
+IR_MAX_RAW = 2500.0 # Raw value considered "close" for plotting on radar
+IR_VALID_MIN = 100   # Minimum raw value to consider plotting on radar (avoids plotting noise)
+# IR_MIN_STRENGTH_FOR_CONSIDERATION was moved up
 
 # Cliff Color Thresholds
 WHITE_THRESHOLD = 3000
@@ -321,17 +327,17 @@ def parse_cybot_message(message):
         # Check for the more specific "END SCAN" marker first
         # Ensure your C code sends something like "SCAN: END SCAN\n"
         if "END SCAN" in line.upper() and line.startswith("SCAN:"):
-            print(f"\nScan END marker received: '{line}'") # Simplified print
-            print(f"Buffer size BEFORE processing END: {len(current_scan_buffer)}")
+            if DEBUG_OBJECT_DETECTION: print(f"\nScan END marker received: '{line}'")
+            if DEBUG_OBJECT_DETECTION: print(f"Buffer size BEFORE processing END: {len(current_scan_buffer)}")
             if current_scan_buffer:
                 last_scan_data = current_scan_buffer[:]
                 current_scan_buffer = []
-                print(f"Copied data to last_scan_data (size: {len(last_scan_data)}). Cleared buffer.")
+                if DEBUG_OBJECT_DETECTION: print(f"Copied data to last_scan_data (size: {len(last_scan_data)}). Cleared buffer.")
                 # Use app.after to ensure GUI updates happen safely in the main thread
                 app.after(10, draw_radar_plot) # Schedule radar plot
                 app.after(20, detect_and_plot_objects) # Schedule object detection
             else:
-                print("Scan END received, but current_scan_buffer is empty. No plotting.")
+                if DEBUG_OBJECT_DETECTION: print("Scan END received, but current_scan_buffer is empty. No plotting.")
             return # Stop processing this line further
 
         # Process other message types
@@ -352,7 +358,7 @@ def parse_cybot_message(message):
 
 # --- GUI Update Functions ---
 # (initialize_robot_position, update_sensor_status, append_scan_data,
-#  update_map_with_scan, detect_and_plot_objects, update_map_with_bump
+#  update_map_with_scan, update_map_with_bump
 #  functions remain mostly the same, except for logging added to update_robot_position_and_trail)
 def initialize_robot_position():
     """Sets the robot's initial position to the center of the map canvas."""
@@ -436,7 +442,7 @@ def update_sensor_status(status_string):
         sensor_canvas.itemconfig("cliff_fr_indicator", fill=cliff_fr_color)
         sensor_canvas.itemconfig("cliff_r_indicator", fill=cliff_r_color)
     except tk.TclError as e:
-        print(f"Error updating cliff indicator colors: {e}")
+        print(f"Error updating cliff indicator colors: {e}") # Should not happen if tags are correct
     cliff_l_sig_label.config(text=f"L: {cliff_l_sig_val_str}")
     cliff_fl_sig_label.config(text=f"FL: {cliff_fl_sig_val_str}")
     cliff_fr_sig_label.config(text=f"FR: {cliff_fr_sig_val_str}")
@@ -454,7 +460,7 @@ def append_scan_data(scan_data_string, is_mock_data=False):
                  angle_deg = float(parts[0])
                  dist_m = float(parts[1])
                  dist_cm = dist_m * 100.0 # Convert mock meters to cm
-                 ir_raw = 0
+                 ir_raw = 0 # Mock IR
         else: # Parsing REAL CyBot data (Expecting DIST_CM now)
             parts = scan_data_string.split(',')
             for part in parts:
@@ -463,12 +469,11 @@ def append_scan_data(scan_data_string, is_mock_data=False):
                     key, value = key_value[0].strip(), key_value[1].strip()
                     if key == "ANGLE":
                         angle_deg = float(value)
-                    elif key == "DIST_CM": # <<< LOOK FOR DIST_CM
-                        dist_cm = float(value) # <<< NO division by 10
+                    elif key == "DIST_CM": 
+                        dist_cm = float(value) 
                     elif key == "IR_RAW":
                         ir_raw = int(value)
 
-        # Check if all necessary values were successfully parsed
         if angle_deg is not None and dist_cm is not None and ir_raw is not None:
              current_scan_buffer.append((angle_deg, dist_cm, ir_raw))
         # else: # Optional: Add print if parsing failed
@@ -479,151 +484,210 @@ def append_scan_data(scan_data_string, is_mock_data=False):
     except Exception as e:
         print(f"Error appending scan data '{scan_data_string}': {e}")
 
-def update_map_with_scan(scan_data_string):
-    pass # Placeholder
+def update_map_with_scan(scan_data_string): # Placeholder, not actively used for object plotting currently
+    pass 
 
-# (Ensure math, global variables like robot_x, etc., and constants are accessible)
-
+# ---vvv--- MODIFIED detect_and_plot_objects FUNCTION ---vvv---
 def detect_and_plot_objects(scan_data=None):
     """Processes scan data, finds object edges using IR, uses PING for geometry,
        and plots them with adjusted distance representation."""
     global robot_x, robot_y, robot_angle_deg, last_scan_data, map_canvas
     global MAP_SCALE, SENSOR_FORWARD_OFFSET_CM, OBJECT_MAX_DIST_CM
-    global OBJECT_MIN_POINTS, OBJECT_MIN_ANGLE_WIDTH_DEG # Existing utility thresholds
-    global IR_EDGE_THRESHOLD, IR_MIN_STRENGTH_FOR_CONSIDERATION # New IR detection constants
+    global OBJECT_MIN_POINTS, OBJECT_MIN_ANGLE_WIDTH_DEG
+    # Using new IR constants:
+    global IR_MIN_STRENGTH_FOR_CONSIDERATION, IR_EDGE_THRESHOLD_RISE, IR_EDGE_THRESHOLD_DROP, DEBUG_OBJECT_DETECTION
 
     if scan_data is None: scan_data = last_scan_data
 
     map_canvas.delete("detected_object")
     if not scan_data:
+        if DEBUG_OBJECT_DETECTION: print("detect_and_plot_objects: No scan data to process.")
         return
 
-    # Assuming scan_data is a list of (angle_deg, dist_cm, ir_raw)
-    # Sort by angle for consistent processing, if not already sorted
     scan_data_sorted = sorted(scan_data, key=lambda p: p[0])
 
-    objects_segments = []  # Stores segments of (angle, dist_cm, ir_raw) points
+    objects_segments = []
     current_segment_points = []
-    in_object_segment = False
+    in_object_segment = False # State: True if currently collecting points for an object
 
     # Pad with dummy points to correctly handle edges at the start/end of scan.
-    # Dummy points should have IR values that won't trigger edges with real data.
-    dummy_ir_far = min(IR_MIN_STRENGTH_FOR_CONSIDERATION / 2, 200) # Weak IR
-    dummy_ping_far = OBJECT_MAX_DIST_CM * 3
-    scan_data_padded = \
-        [(-5.0, dummy_ping_far, dummy_ir_far)] + \
-        scan_data_sorted + \
-        [(185.0, dummy_ping_far, dummy_ir_far)]
+    # These dummy points should have IR values that won't trigger edges with real data.
+    dummy_ir_weak = min(IR_MIN_STRENGTH_FOR_CONSIDERATION / 2, 50) # Ensure it's weaker than consideration threshold
+    dummy_ping_far = OBJECT_MAX_DIST_CM * 3 # Ensure it's beyond relevant PING distance
+    
+    # Create a list of (angle, dist_cm, ir_raw, prev_ir_raw) for easier iteration
+    # The first point's prev_ir_raw will be the dummy_ir_weak.
+    processed_scan = []
+    if scan_data_sorted:
+        processed_scan.append(
+            (scan_data_sorted[0][0], scan_data_sorted[0][1], scan_data_sorted[0][2], dummy_ir_weak) 
+        )
+        for i in range(1, len(scan_data_sorted)):
+            processed_scan.append(
+                (scan_data_sorted[i][0], scan_data_sorted[i][1], scan_data_sorted[i][2], scan_data_sorted[i-1][2])
+            )
+    
+    # If using padding (can be complex to manage prev_ir correctly with simple padding):
+    # For simplicity, this revised version will not use the complex dummy padding from before,
+    # but will rely on careful boundary checks or accepting that objects at 0/180 deg might be harder to detect perfectly.
+    # Let's proceed by iterating through the sorted, unpadded scan data and managing previous values carefully.
 
-    for i in range(1, len(scan_data_padded)):
-        angle, dist_cm, ir_raw = scan_data_padded[i]
-        prev_angle, prev_dist_cm, prev_ir_raw = scan_data_padded[i-1]
+    if DEBUG_OBJECT_DETECTION: print(f"\n--- Starting Object Detection Cycle ({len(scan_data_sorted)} points) ---")
+    if DEBUG_OBJECT_DETECTION: 
+        print(f"Params: IR_MIN_CONSIDER={IR_MIN_STRENGTH_FOR_CONSIDERATION}, IR_RISE_THRESH={IR_EDGE_THRESHOLD_RISE}, IR_DROP_THRESH={IR_EDGE_THRESHOLD_DROP}")
 
-        ir_change = ir_raw - prev_ir_raw
+    prev_ir_raw_val = dummy_ir_weak # Initialize prev_ir_raw for the very first point
+    prev_dist_cm_val = dummy_ping_far
+    prev_angle_val = -1.0 # Dummy angle
 
-        # Conditions for the current point to be viable for object detection
+    for i in range(len(scan_data_sorted)):
+        angle, dist_cm, ir_raw = scan_data_sorted[i]
+
+        # For the first point, prev_ir_raw_val is dummy_ir_weak. For others, it's the actual previous.
+        # This loop structure means prev_ir_raw_val is from the actual scan_data_sorted[i-1] after the first iteration.
+        if i > 0:
+            prev_ir_raw_val = scan_data_sorted[i-1][2]
+            # prev_dist_cm_val = scan_data_sorted[i-1][1] # Not directly used in edge logic but good for context
+            # prev_angle_val = scan_data_sorted[i-1][0]
+
+        ir_change = ir_raw - prev_ir_raw_val # current - previous
+        
         ping_is_relevant = (dist_cm > 0 and dist_cm <= OBJECT_MAX_DIST_CM)
-        current_ir_is_strong_enough = (ir_raw >= IR_MIN_STRENGTH_FOR_CONSIDERATION)
-        prev_ir_is_strong_enough = (prev_ir_raw >= IR_MIN_STRENGTH_FOR_CONSIDERATION) # For transition detection
+        current_ir_is_strong = (ir_raw >= IR_MIN_STRENGTH_FOR_CONSIDERATION)
+        prev_ir_was_strong = (prev_ir_raw_val >= IR_MIN_STRENGTH_FOR_CONSIDERATION)
+
+        if DEBUG_OBJECT_DETECTION and i < 5: # Print first few points for detail
+             print(f"  Point {i}: Angle={angle:.1f}, Dist={dist_cm:.1f}, IR={ir_raw} (PrevIR={prev_ir_raw_val}, Change={ir_change})")
+             print(f"     RelevantPING={ping_is_relevant}, CurrStrongIR={current_ir_is_strong}, PrevStrongIR={prev_ir_was_strong}")
+
 
         if not in_object_segment:
-            # START Condition:
-            # 1. PING must be in a relevant range.
-            # 2. Current IR reading must be strong enough.
-            # 3. Either:
-            #    a. Significant IR increase (sharp edge).
-            #    b. OR, IR just transitioned from "not strong enough" to "strong enough".
-            if ping_is_relevant and current_ir_is_strong_enough and \
-               (ir_change >= IR_EDGE_THRESHOLD or \
-                (not prev_ir_is_strong_enough)): # Transitioned into strong IR
-                in_object_segment = True
-                current_segment_points = [(angle, dist_cm, ir_raw)]
-        else:  # in_object_segment
-            # END Condition:
-            # Segment ends if:
-            # 1. PING is no longer relevant (e.g., object too far based on PING).
-            # 2. OR, Current IR is no longer strong enough (fell below consideration threshold).
-            # 3. OR, Significant IR decrease (sharp edge), but only if previous point was also strong.
-            #    (This avoids ending on noise if IR was already weak).
+            # --- Condition to START a new object segment ---
+            # Must have relevant PING distance and current IR must be strong enough
+            if ping_is_relevant and current_ir_is_strong:
+                # Start if EITHER a sharp rise in IR OR a transition from weak IR to strong IR
+                is_sharp_rise = (ir_change >= IR_EDGE_THRESHOLD_RISE)
+                is_transition_to_strong = (not prev_ir_was_strong) # current_ir_is_strong is already true here
+
+                if is_sharp_rise or is_transition_to_strong:
+                    in_object_segment = True
+                    current_segment_points = [(angle, dist_cm, ir_raw)]
+                    if DEBUG_OBJECT_DETECTION:
+                        print(f"  Segment START: Angle={angle:.1f}, IR={ir_raw}, Dist={dist_cm:.1f}. Rise={is_sharp_rise}, Trans={is_transition_to_strong}. Change={ir_change}")
+                # else:
+                    # if DEBUG_OBJECT_DETECTION and current_ir_is_strong : print(f"    No Start: Angle={angle:.1f}, IR={ir_raw}. Not sharp/transition. Change={ir_change}")
+
+        else: # We are currently in an object segment
+            # --- Conditions to END the current object segment ---
+            # 1. Current point's PING distance or IR strength makes it unsuitable for continuing
+            point_is_unsuitable = not (ping_is_relevant and current_ir_is_strong)
             
-            # Check for sharp drop first, only if both points were strong enough to begin with
-            sharp_ir_drop = (current_ir_is_strong_enough and prev_ir_is_strong_enough and ir_change <= -IR_EDGE_THRESHOLD)
-            
-            if not (ping_is_relevant and current_ir_is_strong_enough) or sharp_ir_drop:
+            # 2. Sharp drop in IR (current is weaker than previous by a threshold),
+            #    AND both current and previous points were considered strong enough to form part of a valid edge.
+            #    (Avoids ending due to noise if previous point was already weak).
+            #    ir_change = current - prev. So, prev - current = -ir_change
+            is_sharp_drop = (current_ir_is_strong and prev_ir_was_strong and (-ir_change >= IR_EDGE_THRESHOLD_DROP) )
+            # Alternative for sharp drop: (prev_ir_raw_val - ir_raw >= IR_EDGE_THRESHOLD_DROP)
+
+            if point_is_unsuitable or is_sharp_drop:
                 in_object_segment = False
                 if len(current_segment_points) >= OBJECT_MIN_POINTS:
                     objects_segments.append(list(current_segment_points))
+                    if DEBUG_OBJECT_DETECTION:
+                        print(f"  Segment ENDED before Angle={angle:.1f}. Reason: Unsuitable={point_is_unsuitable}, SharpDrop={is_sharp_drop}. PrevIR={prev_ir_raw_val}, CurrIR={ir_raw}")
+                        print(f"    Stored segment with {len(current_segment_points)} points. Last point: {current_segment_points[-1][0]:.1f} deg.")
+                # else:
+                    # if DEBUG_OBJECT_DETECTION: print(f"  Segment Discarded (too few points): {len(current_segment_points)}")
                 current_segment_points = []
-                
-                # Check if the current point that ENDED this segment could START a new one
-                # (e.g. ended due to sharp IR drop, but current point is still valid and strong)
-                # This handles cases like two objects close together.
-                if ping_is_relevant and current_ir_is_strong_enough and \
-                   (ir_change >= IR_EDGE_THRESHOLD or (not prev_ir_is_strong_enough)):
-                     # The prev_ir_is_strong_enough here actually refers to scan_data_padded[i-1]'s ir for THIS iteration
-                     # which was the point that caused the previous segment to end *if* it was a sharp drop.
-                     # More simply, if the point is valid, let the next iteration handle starting a new segment.
-                     # However, if it was a sharp drop, the *current* point is the start of the "valley".
-                     # For now, let the main loop handle new segment starts in the next iteration.
-                     pass
 
-            else: # Continue current segment
+                # After ending a segment, the current point might be the start of a NEW segment.
+                # This logic will be naturally handled when this current point is re-evaluated
+                # in the 'if not in_object_segment:' block in the *next iteration* if it wasn't consumed.
+                # No, this point needs to be re-evaluated NOW if it caused an end.
+                # Let's re-evaluate the *current point* for starting a new segment if it just ended one.
+                if ping_is_relevant and current_ir_is_strong:
+                    is_sharp_rise = (ir_change >= IR_EDGE_THRESHOLD_RISE)
+                    is_transition_to_strong = (not prev_ir_was_strong)
+                    if is_sharp_rise or is_transition_to_strong:
+                        in_object_segment = True
+                        current_segment_points = [(angle, dist_cm, ir_raw)]
+                        if DEBUG_OBJECT_DETECTION:
+                            print(f"  Segment RE-START immediately at Angle={angle:.1f}, IR={ir_raw}. Rise={is_sharp_rise}, Trans={is_transition_to_strong}")
+            else:
+                # Continue current segment
                 current_segment_points.append((angle, dist_cm, ir_raw))
+        
+        # Update prev_ir_raw_val for the next iteration is implicitly handled by loop structure for i > 0
+        # If we used padding, this would be more complex.
 
-    if in_object_segment and len(current_segment_points) >= OBJECT_MIN_POINTS: # Catch any trailing segment
+    # Catch any trailing segment after the loop finishes
+    if in_object_segment and len(current_segment_points) >= OBJECT_MIN_POINTS:
         objects_segments.append(list(current_segment_points))
-    # --- End of IR-Based Object Segmentation ---
+        if DEBUG_OBJECT_DETECTION: print(f"  Trailing segment stored with {len(current_segment_points)} points. Last point: {current_segment_points[-1][0]:.1f} deg.")
+    
+    if DEBUG_OBJECT_DETECTION: print(f"--- Object Detection Cycle END. Found {len(objects_segments)} raw segments. ---")
 
-    # --- Process Segments into Plottable Objects (similar to before, but segments are IR-defined) ---
+    # --- Process Segments into Plottable Objects ---
     plotted_objects_info = []
-    for segment in objects_segments:
+    for idx, segment in enumerate(objects_segments):
         if not segment: continue
 
         angles = [p[0] for p in segment]
-        # PING distances from the IR-defined segment are used for geometry
+        # Use PING distances from the IR-defined segment for geometry. Filter out invalid PINGs again just in case.
         distances_cm = [p[1] for p in segment if (p[1] > 0 and p[1] <= OBJECT_MAX_DIST_CM)]
         
-        if not distances_cm: continue # Need valid PING readings in the segment
+        if not distances_cm:
+            if DEBUG_OBJECT_DETECTION: print(f"  Segment {idx} skipped: No valid PING distances.")
+            continue 
 
         start_angle_obj = angles[0]
         end_angle_obj = angles[-1]
         angular_width_deg = abs(end_angle_obj - start_angle_obj)
 
         if angular_width_deg < OBJECT_MIN_ANGLE_WIDTH_DEG:
+            if DEBUG_OBJECT_DETECTION: print(f"  Segment {idx} skipped: Angular width {angular_width_deg:.1f} < {OBJECT_MIN_ANGLE_WIDTH_DEG:.1f} deg.")
             continue
 
-        closest_dist_in_segment_cm = min(distances_cm)
+        # Use PING distances at the segment edges determined by IR
+        dist_at_start_angle = segment[0][1] # PING distance for the first point of the IR segment
+        dist_at_end_angle = segment[-1][1]  # PING distance for the last point of the IR segment
         
-        # Estimate linear width using PING distances at the segment edges
-        # Find the (dist_cm, ir_raw) for the start and end angles of the segment
-        dist_at_start_angle = segment[0][1]
-        dist_at_end_angle = segment[-1][1]
-        
+        # Ensure these distances are valid for width calculation
+        if not (dist_at_start_angle > 0 and dist_at_start_angle <= OBJECT_MAX_DIST_CM and \
+                dist_at_end_angle > 0 and dist_at_end_angle <= OBJECT_MAX_DIST_CM):
+            if DEBUG_OBJECT_DETECTION: print(f"  Segment {idx} skipped: Invalid edge PING distances for width calc (Start: {dist_at_start_angle:.1f}, End: {dist_at_end_angle:.1f}).")
+            continue
+            
         linear_width_cm = 0
-        if angular_width_deg > 0.1 and \
-           (dist_at_start_angle > 0 and dist_at_start_angle <= OBJECT_MAX_DIST_CM) and \
-           (dist_at_end_angle > 0 and dist_at_end_angle <= OBJECT_MAX_DIST_CM):
-            angle_diff_rad = math.radians(angular_width_deg)
-            term = (dist_at_start_angle**2 + dist_at_end_angle**2 -
-                    2 * dist_at_start_angle * dist_at_end_angle * math.cos(angle_diff_rad))
-            linear_width_cm = math.sqrt(max(0, term))
-        else:
-            # Fallback: Estimate width based on angular span and closest distance
-            # This is a rough approximation: arc length = radius * angle_in_radians
-            if closest_dist_in_segment_cm > 0 :
-                 linear_width_cm = closest_dist_in_segment_cm * math.radians(angular_width_deg)
-            else: # further fallback
-                 linear_width_cm = 5.0
+        angle_diff_rad = math.radians(angular_width_deg)
+        
+        # Law of Cosines: c^2 = a^2 + b^2 - 2ab * cos(C)
+        # Here, c = linear_width_cm, a = dist_at_start_angle, b = dist_at_end_angle, C = angle_diff_rad
+        term_for_sqrt = (dist_at_start_angle**2 + dist_at_end_angle**2 -
+                         2 * dist_at_start_angle * dist_at_end_angle * math.cos(angle_diff_rad))
+        
+        if term_for_sqrt >= 0: # Ensure argument for sqrt is non-negative
+            linear_width_cm = math.sqrt(term_for_sqrt)
+        else: # Should not happen if angles/distances are sane, but as a fallback
+            if DEBUG_OBJECT_DETECTION: print(f"  Segment {idx} Warning: Negative term for sqrt in width calc ({term_for_sqrt:.2f}). Using fallback.")
+            # Fallback: Estimate width based on angular span and average distance (less accurate)
+            avg_dist_cm = sum(distances_cm) / len(distances_cm)
+            linear_width_cm = avg_dist_cm * angle_diff_rad # Arc length approximation
 
+        closest_dist_in_segment_cm = min(distances_cm) # Overall closest PING reading in the segment
 
         plotted_objects_info.append({
             'middle_angle_servo': (start_angle_obj + end_angle_obj) / 2.0,
             'closest_distance_cm': closest_dist_in_segment_cm,
-            'linear_width_cm': linear_width_cm
+            'linear_width_cm': linear_width_cm,
+            'start_angle': start_angle_obj, # For debug
+            'end_angle': end_angle_obj,     # For debug
+            'num_points': len(segment)      # For debug
         })
-    # --- End Processing Segments ---
+        if DEBUG_OBJECT_DETECTION:
+             print(f"  Plotted Object from Segment {idx}: StartAng={start_angle_obj:.1f}, EndAng={end_angle_obj:.1f}, Width={linear_width_cm:.2f}cm, ClosestDist={closest_dist_in_segment_cm:.1f}cm")
 
-    # print(f"Found {len(objects_segments)} IR segments, {len(plotted_objects_info)} objects after filtering.") # Optional debug
+    if DEBUG_OBJECT_DETECTION: print(f"--- Found {len(plotted_objects_info)} objects after filtering. ---")
 
     # --- Calculate Sensor's current position on the map (same as before) ---
     sensor_offset_pixels = SENSOR_FORWARD_OFFSET_CM * MAP_SCALE
@@ -631,59 +695,76 @@ def detect_and_plot_objects(scan_data=None):
     sensor_origin_x = robot_x + sensor_offset_pixels * math.cos(robot_current_angle_rad)
     sensor_origin_y = robot_y - sensor_offset_pixels * math.sin(robot_current_angle_rad)
 
-    # --- Plotting Validated Objects (using adjusted distance, same as your last version) ---
+    # --- Plotting Validated Objects ---
     for obj_info in plotted_objects_info:
-        if obj_info['closest_distance_cm'] <= 0: continue # Already filtered by OBJECT_MAX_DIST_CM earlier
+        # Basic check, though distances should be positive if they made it this far
+        if obj_info['closest_distance_cm'] <= 0 or obj_info['linear_width_cm'] <= 0: continue
 
+        # Object's center angle relative to robot's forward direction (0 degrees for sensor)
+        # Servo angles are 0-180. Robot forward is when servo is at 90 deg.
         object_angle_relative_to_robot_forward_deg = obj_info['middle_angle_servo'] - 90.0
+        
+        # World angle of the line from SENSOR to the CENTER of the object's angular span
         world_angle_of_object_center_deg = robot_angle_deg + object_angle_relative_to_robot_forward_deg
         obj_center_angle_world_rad = math.radians(world_angle_of_object_center_deg)
 
-        obj_closest_edge_dist_cm = obj_info['closest_distance_cm']
+        # For plotting, place the center of the oval such that its edge touches the closest point
+        obj_closest_edge_dist_cm = obj_info['closest_distance_cm'] 
         obj_visual_radius_cm = obj_info['linear_width_cm'] / 2.0
+
+        # Distance from SENSOR to the plotted OVAL's CENTER
         oval_center_dist_from_sensor_cm = obj_closest_edge_dist_cm + obj_visual_radius_cm
         oval_center_dist_pixels = oval_center_dist_from_sensor_cm * MAP_SCALE
         
+        # Coordinates of the OVAL's center on the map
         obj_oval_center_x = sensor_origin_x + oval_center_dist_pixels * math.cos(obj_center_angle_world_rad)
         obj_oval_center_y = sensor_origin_y - oval_center_dist_pixels * math.sin(obj_center_angle_world_rad)
 
-        obj_visual_radius_pixels = max(obj_visual_radius_cm * MAP_SCALE, 2.0) 
+        obj_visual_radius_pixels = max(obj_visual_radius_cm * MAP_SCALE, 2.0) # Min 2 pixels radius
 
         map_canvas.create_oval(obj_oval_center_x - obj_visual_radius_pixels,
                                obj_oval_center_y - obj_visual_radius_pixels,
                                obj_oval_center_x + obj_visual_radius_pixels,
                                obj_oval_center_y + obj_visual_radius_pixels,
-                               outline="darkmagenta", fill="orchid", width=2, tags="detected_object") # New colors
+                               outline="darkmagenta", fill="orchid", width=2, tags="detected_object")
         
         map_canvas.create_text(obj_oval_center_x, obj_oval_center_y,
                                text=f"{obj_info['closest_distance_cm']:.0f}", 
                                fill="black", font=("Arial", 7), tags="detected_object")
+# ---^^^--- END OF MODIFIED detect_and_plot_objects FUNCTION ---^^^---
 
 def update_map_with_bump(bump_info_string):
     """Draws a bump indicator on the map."""
     global robot_x, robot_y, robot_angle_deg
-    print(f"Updating map with bump: {bump_info_string}")
-    bump_offset_pixels = ROBOT_RADIUS_PIXELS
+    if DEBUG_OBJECT_DETECTION: print(f"Updating map with bump: {bump_info_string}") # Optional debug
+    bump_offset_pixels = ROBOT_RADIUS_PIXELS 
     bump_angle_relative_deg = 0
-    if "LEFT" in bump_info_string: bump_angle_relative_deg = 45
-    elif "RIGHT" in bump_info_string: bump_angle_relative_deg = -45
+    if "LEFT" in bump_info_string.upper(): bump_angle_relative_deg = 45 # Sensor is forward, bump is on robot body
+    elif "RIGHT" in bump_info_string.upper(): bump_angle_relative_deg = -45
 
-    bump_angle_world_deg = robot_angle_deg + bump_angle_relative_deg
+    bump_angle_world_deg = robot_angle_deg + bump_angle_relative_deg # This assumes bump is at robot center + angle
+    # More accurately, bump location depends on where on the chassis it is.
+    # For simplicity, we draw it relative to robot center and orientation.
+    
     bump_angle_world_rad = math.radians(bump_angle_world_deg)
-    bump_x = robot_x + bump_offset_pixels * math.cos(bump_angle_world_rad)
-    bump_y = robot_y - bump_offset_pixels * math.sin(bump_angle_world_rad)
+
+    # Offset from robot center towards the bump direction
+    bump_indicator_offset_x = ROBOT_RADIUS_PIXELS * math.cos(bump_angle_world_rad)
+    bump_indicator_offset_y = -ROBOT_RADIUS_PIXELS * math.sin(bump_angle_world_rad) # Y decreases upwards
+
+    bump_x = robot_x + bump_indicator_offset_x
+    bump_y = robot_y + bump_indicator_offset_y
     radius = 5
     map_canvas.create_rectangle(bump_x - radius, bump_y - radius, bump_x + radius, bump_y + radius,
                                 fill="red", outline="darkred", tags="bump_event")
 
-# ---vvv--- MODIFIED FUNCTION (Added Logging) ---vvv---
+# ---vvv--- MODIFIED FUNCTION (Added Logging from previous responses) ---vvv---
 def update_robot_position_and_trail(move_data_string):
     """Updates the robot's pose (x, y, angle) and draws a trail segment."""
     global robot_x, robot_y, robot_angle_deg
-    print(f"--- Pose Update --- Received MOVE data: '{move_data_string}'") # Log incoming data
+    # print(f"--- Pose Update --- Received MOVE data: '{move_data_string}'") 
     try:
         dist_cm, angle_deg_delta = 0.0, 0.0
-        # Parse distance and angle change from the MOVE string
         parts = move_data_string.split(',')
         for part in parts:
             key_value = part.split('=')
@@ -694,35 +775,33 @@ def update_robot_position_and_trail(move_data_string):
                 elif key == "ANGLE_DEG":
                     angle_deg_delta = float(value)
 
-        print(f"--- Pose Update --- Parsed: Dist={dist_cm:.2f} cm, Angle Delta={angle_deg_delta:.2f} deg") # Log parsed values
+        # print(f"--- Pose Update --- Parsed: Dist={dist_cm:.2f} cm, Angle Delta={angle_deg_delta:.2f} deg") 
 
-        # Store previous position for drawing the trail
         prev_x, prev_y = robot_x, robot_y
-        prev_angle = robot_angle_deg
+        # prev_angle = robot_angle_deg # Not strictly needed for drawing trail line
 
-        # Update angle FIRST
+        # Update angle FIRST ( Cybot likely reports angle change, then moves forward based on new heading )
         robot_angle_deg += angle_deg_delta
-        robot_angle_deg %= 360 # Normalize angle
+        robot_angle_deg %= 360 
         if robot_angle_deg < 0: robot_angle_deg += 360
 
-        # Calculate displacement based on the NEW angle
         dist_pixels = dist_cm * MAP_SCALE
-        robot_angle_rad = math.radians(robot_angle_deg) # Use updated angle
-        delta_x = dist_pixels * math.cos(robot_angle_rad)
-        delta_y = -dist_pixels * math.sin(robot_angle_rad) # Y decreases upwards
+        # Calculate displacement based on the AVERAGE angle if turn&move happen "together"
+        # Or, if turn happens, then move, use NEW angle. Assume new angle for forward motion.
+        current_robot_angle_rad = math.radians(robot_angle_deg) 
+        
+        delta_x = dist_pixels * math.cos(current_robot_angle_rad)
+        delta_y = -dist_pixels * math.sin(current_robot_angle_rad) # Y decreases upwards
 
-        # Update robot's position
         robot_x += delta_x
         robot_y += delta_y
 
-        print(f"--- Pose Update --- Old Pose: ({prev_x:.1f}, {prev_y:.1f}), {prev_angle:.1f} deg")
-        print(f"--- Pose Update --- New Pose: ({robot_x:.1f}, {robot_y:.1f}), {robot_angle_deg:.1f} deg") # Log new pose
+        # print(f"--- Pose Update --- Old Pose: ({prev_x:.1f}, {prev_y:.1f}), {prev_angle:.1f} deg")
+        # print(f"--- Pose Update --- New Pose: ({robot_x:.1f}, {robot_y:.1f}), {robot_angle_deg:.1f} deg")
 
-        # Draw trail segment if significant movement occurred
-        if abs(dist_cm) > 0.1 or abs(angle_deg_delta) > 0.1:
+        if abs(dist_cm) > 0.1 or abs(angle_deg_delta) > 0.1: # If significant movement
              map_canvas.create_line(prev_x, prev_y, robot_x, robot_y, fill="darkgreen", width=2, tags="trail")
 
-        # Redraw robot at its new position and orientation
         draw_robot_on_map()
     except ValueError as ve:
         print(f"ValueError processing move data '{move_data_string}': {ve}")
@@ -731,6 +810,7 @@ def update_robot_position_and_trail(move_data_string):
 # ---^^^--- MODIFIED FUNCTION ---^^^---
 
 
+# (draw_radar_plot, clear_map_features, draw_robot_on_map functions remain the same)
 # In GUI.py
 
 # (Make sure math is imported: import math)
@@ -748,201 +828,189 @@ def draw_radar_plot():
     try:
         canvas_width = radar_canvas.winfo_width()
         canvas_height = radar_canvas.winfo_height()
-    except tk.TclError:
-        print("Radar canvas not ready, retrying draw...")
-        app.after(50, draw_radar_plot)
+    except tk.TclError: # Happens if canvas isn't fully initialized yet
+        # print("Radar canvas not ready, retrying draw...")
+        app.after(50, draw_radar_plot) # Retry shortly
         return
 
-    if canvas_width <= 1 or canvas_height <= 1:
-        print("Radar canvas too small, skipping draw.")
+    if canvas_width <= 1 or canvas_height <= 1: # Canvas not properly sized yet
+        # print("Radar canvas too small, skipping draw.")
         return
 
     center_x = canvas_width / 2
-    center_y = canvas_height # Base Y at the bottom
-    max_radius_pixels = min(canvas_width / 2.0, canvas_height) * 0.9
+    center_y = canvas_height # Base Y at the bottom for a 180-degree forward sweep
+    max_radius_pixels = min(canvas_width / 2.0, canvas_height) * 0.9 # Max plot radius to fit nicely
 
     # Use the same max distance for the PING plot scale and grid
-    max_dist_cm = 330.0 # Max range for PING display and grid
+    max_dist_cm_for_plot = 330.0 # Max range for PING display and grid lines (e.g. 3.3 meters)
 
-    # --- Draw Grid (same as before, scaled to max_dist_cm) ---
+    # --- Draw Grid (scaled to max_dist_cm_for_plot) ---
     grid_color = "#A0A0A0"; label_color = "#505050"
-    # Grid arcs
-    for r_cm in [50, 100, 150, 200, 250, 300]:
-        r_ratio = r_cm / max_dist_cm;
-        if r_ratio > 1.0: continue
+    # Grid arcs (semi-circles)
+    for r_cm in [50, 100, 150, 200, 250, 300]: # Define distances for grid lines
+        if r_cm > max_dist_cm_for_plot : continue
+        r_ratio = r_cm / max_dist_cm_for_plot
         r_pixels = max_radius_pixels * r_ratio
-        # Basic check for valid coordinates before drawing arcs/text
+        
         if all(map(math.isfinite, [center_x - r_pixels, center_y - r_pixels, center_x + r_pixels, center_y + r_pixels])):
             radar_canvas.create_arc(center_x - r_pixels, center_y - r_pixels, center_x + r_pixels, center_y + r_pixels,
                                     start=0, extent=180, outline=grid_color, style=tk.ARC, tags="scan_plot_grid")
-            # Place text slightly outside the arc
-            text_r_pixels = r_pixels + 2
-            # Check text position validity
+            text_r_pixels = r_pixels + 2 # Place text slightly outside the arc
             if math.isfinite(center_x + 5) and math.isfinite(center_y - text_r_pixels + 8):
                  radar_canvas.create_text(center_x + 5, center_y - text_r_pixels + 8, text=f"{r_cm:.0f}", fill=label_color, font=("Arial", 7), anchor="w", tags="scan_plot_grid")
 
-    # Radial lines
-    for angle_deg in range(0, 181, 30):
-        plot_angle_deg = angle_deg
-        angle_rad = math.radians(plot_angle_deg)
-        line_end_x = center_x + max_radius_pixels * math.cos(angle_rad)
-        line_end_y = center_y - max_radius_pixels * math.sin(angle_rad)
-        # Check line coordinate validity
+    # Radial lines (for angles)
+    for angle_deg_servo_frame in range(0, 181, 30): # 0 to 180 degrees in servo frame
+        # Plot angle is directly the servo angle (0 right, 90 forward, 180 left for radar display)
+        plot_angle_rad = math.radians(angle_deg_servo_frame) 
+        line_end_x = center_x + max_radius_pixels * math.cos(plot_angle_rad)
+        line_end_y = center_y - max_radius_pixels * math.sin(plot_angle_rad) # Y decreases upwards
+        
         if all(map(math.isfinite, [center_x, center_y, line_end_x, line_end_y])):
             radar_canvas.create_line(center_x, center_y, line_end_x, line_end_y, fill=grid_color, tags="scan_plot_grid")
 
-        # Angle Labels (Add checks for label positions)
-        label_rad = max_radius_pixels * 1.05
-        label_x = center_x + label_rad * math.cos(angle_rad)
-        label_y = center_y - label_rad * math.sin(angle_rad)
-        anchor_pos = tk.CENTER; x_offset = 0; y_offset = 0
-        # (Anchor logic remains the same)
-        if plot_angle_deg == 0: anchor_pos = tk.W; x_offset = 3
-        elif plot_angle_deg == 180: anchor_pos = tk.E; x_offset = -3
-        elif plot_angle_deg == 90: anchor_pos = tk.S; y_offset = -3
-        elif plot_angle_deg > 90: anchor_pos = tk.SW; y_offset = -1; x_offset = 1
-        elif plot_angle_deg < 90: anchor_pos = tk.SE; y_offset = -1; x_offset = -1
-        # Check label coordinate validity
+        # Angle Labels
+        label_rad_offset = max_radius_pixels * 1.05 # Place labels slightly beyond max radius
+        label_x = center_x + label_rad_offset * math.cos(plot_angle_rad)
+        label_y = center_y - label_rad_offset * math.sin(plot_angle_rad)
+        
+        anchor_pos = tk.CENTER; x_offset = 0; y_offset = 0 # Default anchor
+        if angle_deg_servo_frame == 0: anchor_pos = tk.W; x_offset = 3
+        elif angle_deg_servo_frame == 180: anchor_pos = tk.E; x_offset = -3
+        elif angle_deg_servo_frame == 90: anchor_pos = tk.S; y_offset = -3 # Below point for 90 deg
+        elif angle_deg_servo_frame > 90: # Top-left quadrant of radar
+            anchor_pos = tk.NE if angle_deg_servo_frame < 135 else tk.E ; y_offset = 1; x_offset = -1
+        elif angle_deg_servo_frame < 90: # Top-right quadrant of radar
+            anchor_pos = tk.NW if angle_deg_servo_frame > 45 else tk.W; y_offset = 1; x_offset = 1
+            
         if all(map(math.isfinite, [label_x + x_offset, label_y + y_offset])):
-             radar_canvas.create_text(label_x + x_offset, label_y + y_offset, text=f"{angle_deg}°", fill=label_color, font=("Arial", 8), anchor=anchor_pos, tags="scan_plot_grid")
+             radar_canvas.create_text(label_x + x_offset, label_y + y_offset, text=f"{angle_deg_servo_frame}°", fill=label_color, font=("Arial", 8), anchor=anchor_pos, tags="scan_plot_grid")
 
-    # --- Draw Robot Icon (same as before) ---
+    # --- Draw Robot Icon at the center base of the radar ---
     robot_icon_size = 5
-    if all(map(math.isfinite, [center_x - robot_icon_size, center_y - robot_icon_size, center_x + robot_icon_size, center_y])):
-        radar_canvas.create_oval(center_x - robot_icon_size, center_y - robot_icon_size, center_x + robot_icon_size, center_y, fill="darkgreen", outline="black", tags="radar_robot")
-        radar_canvas.create_line(center_x, center_y, center_x, center_y - robot_icon_size * 1.5, fill="white", width=1, arrow=tk.LAST, tags="radar_robot")
+    if all(map(math.isfinite, [center_x - robot_icon_size, center_y - robot_icon_size, center_x + robot_icon_size, center_y])): # Check validity
+        radar_canvas.create_oval(center_x - robot_icon_size, center_y - robot_icon_size, # Small circle for robot base
+                                 center_x + robot_icon_size, center_y, 
+                                 fill="darkgreen", outline="black", tags="radar_robot")
+        radar_canvas.create_line(center_x, center_y, center_x, center_y - robot_icon_size * 1.5, # Line for robot orientation (straight up for 90 deg)
+                                 fill="white", width=1, arrow=tk.LAST, tags="radar_robot")
 
     # --- Prepare to Plot Scan Data ---
-    ping_points_pixels = [] # Holds (x, y) for red PING line
-    ir_points_pixels = []   # Holds (x, y) for blue IR line
-    num_ping_plotted = 0
-    num_ir_plotted = 0
-    num_skipped = 0
+    ping_points_pixels = [] # Holds (x, y) for PING line segments
+    ir_points_pixels = []   # Holds (x, y) for IR line segments
+    # num_ping_plotted = 0; num_ir_plotted = 0; num_ir_skipped = 0 # For debug
 
-    # --- Loop through scan data ---
-    for angle_deg, dist_cm, ir_raw in last_scan_data:
-        plot_angle_deg = angle_deg
-        angle_rad = math.radians(plot_angle_deg)
-        valid_ping_point = False
-        valid_ir_point = False
+    # --- Loop through scan data (angle_deg, dist_cm, ir_raw) ---
+    for angle_deg_servo_frame, dist_cm, ir_raw in last_scan_data:
+        # Angle for plotting on radar (0-180 deg servo frame)
+        plot_angle_rad = math.radians(angle_deg_servo_frame)
+        valid_ping_point_for_current_segment = False
+        valid_ir_point_for_current_segment = False
 
-        # --- Process PING Data ---
-        if dist_cm > 0 and dist_cm <= max_dist_cm:
-            # Scale distance relative to the max_dist_cm for PING plot
-            ping_plot_radius_pixels = min(dist_cm / max_dist_cm, 1.0) * max_radius_pixels
-            ping_point_x = center_x + ping_plot_radius_pixels * math.cos(angle_rad)
-            ping_point_y = center_y - ping_plot_radius_pixels * math.sin(angle_rad)
+        # --- Process PING Data (Red Line) ---
+        if dist_cm > 0 and dist_cm <= max_dist_cm_for_plot:
+            ping_plot_radius_pixels = (dist_cm / max_dist_cm_for_plot) * max_radius_pixels
+            ping_point_x = center_x + ping_plot_radius_pixels * math.cos(plot_angle_rad)
+            ping_point_y = center_y - ping_plot_radius_pixels * math.sin(plot_angle_rad)
 
             if math.isfinite(ping_point_x) and math.isfinite(ping_point_y):
                 ping_points_pixels.extend([ping_point_x, ping_point_y])
-                valid_ping_point = True
-                num_ping_plotted += 1
-            else:
-                print(f"Invalid PING coordinate: angle={angle_deg}, dist={dist_cm}")
-        else:
-            # Invalid PING distance, break the PING line segment
-            pass
-
-        # If current PING point is invalid, draw previous segment if long enough
-        if not valid_ping_point and len(ping_points_pixels) >= 4:
-            try:
-                radar_canvas.create_line(ping_points_pixels, fill="red", width=2, tags="ping_scan_plot")
-            except Exception as e:
-                print(f"Error drawing PING line segment (invalid point): {e}")
+                valid_ping_point_for_current_segment = True
+                # num_ping_plotted +=1
+            # else: print(f"Invalid PING coordinate: angle={angle_deg_servo_frame}, dist={dist_cm}")
+        
+        # If current PING point is invalid (or too far), break the line segment
+        if not valid_ping_point_for_current_segment and len(ping_points_pixels) >= 4: # Need at least 2 points (4 coords)
+            try: radar_canvas.create_line(ping_points_pixels, fill="red", width=2, tags="ping_scan_plot")
+            except Exception as e: print(f"Error drawing PING line segment (invalid point): {e}")
             ping_points_pixels = [] # Reset for next segment
 
-        # --- Process IR Data ---
-        if ir_raw >= IR_VALID_MIN: # Only plot if IR value is reasonably high
-            # Clamp the raw value to the expected range for normalization
-            clamped_ir = max(IR_MIN_RAW, min(ir_raw, IR_MAX_RAW))
-            # Normalize: higher value -> closer to 0; lower value -> closer to 1
-            norm_ir = (clamped_ir - IR_MIN_RAW) / (IR_MAX_RAW - IR_MIN_RAW)
-            # Invert for plotting: closer (high IR, norm_ir near 1) -> smaller radius
-            ir_plot_radius_pixels = (1.0 - norm_ir) * max_radius_pixels
+        # --- Process IR Data (Blue Line) ---
+        # IR_VALID_MIN, IR_MIN_RAW, IR_MAX_RAW are for radar visualization tuning
+        if ir_raw >= IR_VALID_MIN: 
+            clamped_ir = max(IR_MIN_RAW, min(ir_raw, IR_MAX_RAW)) # Clamp to expected range
+            # Normalize: higher IR (closer object) -> norm_ir near 1; lower IR (further) -> norm_ir near 0
+            norm_ir = (clamped_ir - IR_MIN_RAW) / (IR_MAX_RAW - IR_MIN_RAW) 
+            # Invert for plotting: closer (high IR, norm_ir near 1) -> smaller radius on radar
+            ir_plot_radius_pixels = (1.0 - norm_ir) * max_radius_pixels 
+            # Ensure radius is not negative if normalization is off
+            ir_plot_radius_pixels = max(0, ir_plot_radius_pixels)
 
-            ir_point_x = center_x + ir_plot_radius_pixels * math.cos(angle_rad)
-            ir_point_y = center_y - ir_plot_radius_pixels * math.sin(angle_rad)
+
+            ir_point_x = center_x + ir_plot_radius_pixels * math.cos(plot_angle_rad)
+            ir_point_y = center_y - ir_plot_radius_pixels * math.sin(plot_angle_rad)
 
             if math.isfinite(ir_point_x) and math.isfinite(ir_point_y):
                 ir_points_pixels.extend([ir_point_x, ir_point_y])
-                valid_ir_point = True
-                num_ir_plotted += 1
-            else:
-                 print(f"Invalid IR coordinate: angle={angle_deg}, ir_raw={ir_raw}")
-        else:
-            # Invalid or too low IR value, break the IR line segment
-            num_skipped += 1
-            pass
-
-        # If current IR point is invalid, draw previous segment if long enough
-        if not valid_ir_point and len(ir_points_pixels) >= 4:
-            try:
-                radar_canvas.create_line(ir_points_pixels, fill="blue", width=2, tags="ir_scan_plot")
-            except Exception as e:
-                print(f"Error drawing IR line segment (invalid point): {e}")
+                valid_ir_point_for_current_segment = True
+                # num_ir_plotted += 1
+            # else: print(f"Invalid IR coordinate: angle={angle_deg_servo_frame}, ir_raw={ir_raw}")
+        # else: num_ir_skipped +=1
+            
+        # If current IR point is invalid (or too low), break the line segment
+        if not valid_ir_point_for_current_segment and len(ir_points_pixels) >= 4: # Need at least 2 points
+            try: radar_canvas.create_line(ir_points_pixels, fill="blue", width=2, tags="ir_scan_plot")
+            except Exception as e: print(f"Error drawing IR line segment (invalid point): {e}")
             ir_points_pixels = [] # Reset for next segment
 
-
-    # --- Draw the final segments after the loop ---
+    # --- Draw the final PING and IR segments after the loop ---
     if len(ping_points_pixels) >= 4:
-        try:
-            radar_canvas.create_line(ping_points_pixels, fill="red", width=2, tags="ping_scan_plot")
-        except Exception as e:
-            print(f"Error drawing final PING line segment: {e}")
-
+        try: radar_canvas.create_line(ping_points_pixels, fill="red", width=2, tags="ping_scan_plot")
+        except Exception as e: print(f"Error drawing final PING line segment: {e}")
     if len(ir_points_pixels) >= 4:
-        try:
-            radar_canvas.create_line(ir_points_pixels, fill="blue", width=2, tags="ir_scan_plot")
-        except Exception as e:
-            print(f"Error drawing final IR line segment: {e}")
-
-    # print(f"Radar Draw Complete. PING Plotted: {num_ping_plotted}, IR Plotted: {num_ir_plotted}, IR Skipped: {num_skipped}") # Optional
+        try: radar_canvas.create_line(ir_points_pixels, fill="blue", width=2, tags="ir_scan_plot")
+        except Exception as e: print(f"Error drawing final IR line segment: {e}")
+        
+    # print(f"Radar Draw Complete. PING Plotted: {num_ping_plotted}, IR Plotted: {num_ir_plotted}, IR Skipped: {num_ir_skipped}")
 
 
-# (clear_map_features, draw_robot_on_map functions remain the same)
 def clear_map_features(tag_to_clear):
     """Clears specific features (trail, objects, bumps) from the map."""
     map_canvas.delete(tag_to_clear)
-    if tag_to_clear == "trail":
-        initialize_robot_position()
+    if tag_to_clear == "trail": # If clearing trail, re-center robot representation
+        # This assumes robot hasn't actually moved, just clearing drawing.
+        # If robot *has* moved, this re-initialization of position might be confusing.
+        # Consider if re-drawing robot is always needed or only on full map reset.
+        # For now, let's assume it implies a visual reset, so re-drawing robot at current (x,y) is fine.
+        draw_robot_on_map() # Redraw robot after clearing trail (it might have been covered)
+        # initialize_robot_position() # This would reset robot_x, robot_y to map center. Usually not what's wanted when clearing trail.
 
-def draw_robot_on_map(event=None):
+
+def draw_robot_on_map(event=None): # event=None allows binding to <Configure>
     """Draws the robot icon (circle) on the map canvas at its current pose."""
-    global robot_x, robot_y, robot_angle_deg, map_canvas, MAP_SCALE # Add map_canvas and MAP_SCALE if needed in scope
-    map_canvas.delete("robot") # Keep this to clear the old drawing
+    global robot_x, robot_y, robot_angle_deg, map_canvas, MAP_SCALE 
+    map_canvas.delete("robot") 
 
-    # Use is_connected or check if robot coordinates are valid before drawing
-    if not is_connected and not (robot_x > 0 and robot_y > 0): return
+    # Only draw if connected or if robot has a valid position (e.g. from previous session/load)
+    # For this GUI, it's mainly about when connected.
+    if not is_connected and not (robot_x > 0 and robot_y > 0 and map_canvas.winfo_width() > 1): 
+        # print("Skip drawing robot: Not connected or invalid initial state.")
+        return
 
-    # Calculate radius in pixels
-    ROBOT_REAL_RADIUS_CM = 33.0
+    # ROBOT_REAL_RADIUS_CM is the physical radius, used for visual representation scaled by MAP_SCALE
     radius_pixels = ROBOT_REAL_RADIUS_CM * MAP_SCALE
 
-    # Center coordinates
     cx, cy = robot_x, robot_y
 
-    # Calculate bounding box for the circle
     x1 = cx - radius_pixels
     y1 = cy - radius_pixels
     x2 = cx + radius_pixels
     y2 = cy + radius_pixels
 
-    # Check if coordinates are valid before drawing
     if all(map(math.isfinite, [x1, y1, x2, y2])):
-        # Draw the circle
         map_canvas.create_oval(x1, y1, x2, y2,
-                                  fill="darkblue", outline="black", width=1, tags="robot") # Changed fill color
+                                  fill="darkblue", outline="black", width=1, tags="robot")
 
-        # Draw a line to indicate orientation
-        angle_rad = math.radians(robot_angle_deg)
+        # Draw a line to indicate orientation (from center to edge in direction of robot_angle_deg)
+        angle_rad = math.radians(robot_angle_deg) # Convert current robot angle to radians
         line_end_x = cx + radius_pixels * math.cos(angle_rad)
-        line_end_y = cy - radius_pixels * math.sin(angle_rad) # Y decreases upwards
+        line_end_y = cy - radius_pixels * math.sin(angle_rad) # Y decreases upwards in Tkinter canvas
 
         if all(map(math.isfinite, [line_end_x, line_end_y])):
              map_canvas.create_line(cx, cy, line_end_x, line_end_y,
                                      fill="white", width=2, tags="robot")
-    else:
-        print(f"Warning: Invalid coordinates for robot drawing at ({cx}, {cy}), angle {robot_angle_deg}")
+    # else:
+        # print(f"Warning: Invalid coordinates for robot drawing at ({cx}, {cy}), angle {robot_angle_deg}")
 
 
 # --- GUI Setup ---
@@ -1000,14 +1068,14 @@ ping_label.pack(pady=(2, 5), anchor='n') # Pack below cliff frame, anchor top
 # Radar Frame
 radar_frame = ttk.LabelFrame(bottom_left_frame, text="Last Scan Radar"); radar_frame.pack(side=tk.LEFT, padx=(5, 0), expand=True, fill="both")
 radar_canvas = tk.Canvas(radar_frame, bg="#d0d0e0", highlightthickness=1, highlightbackground="grey"); radar_canvas.pack(expand=True, fill="both", pady=5, padx=5)
-radar_canvas.bind("<Configure>", lambda e: draw_radar_plot()) # Redraw radar on resize
+radar_canvas.bind("<Configure>", lambda e: app.after(50, draw_radar_plot)) # Redraw radar on resize, with a small delay
 clear_radar_button = ttk.Button(radar_frame, text="Clear Radar", command=lambda: radar_canvas.delete("ping_scan_plot", "ir_scan_plot")); clear_radar_button.pack(side=tk.BOTTOM, pady=2)
 
 
 # --- Right Pane ---
 map_frame = ttk.LabelFrame(paned_window, text="Test Field Map (Top-Down View)"); paned_window.add(map_frame, weight=3) # Give it more weight
 map_canvas = tk.Canvas(map_frame, bg="lightgrey", highlightthickness=1, highlightbackground="grey"); map_canvas.pack(expand=True, fill="both")
-map_canvas.bind("<Configure>", draw_robot_on_map) # Redraw robot if canvas size changes
+map_canvas.bind("<Configure>", lambda e: app.after(50, draw_robot_on_map)) # Redraw robot if canvas size changes, with a small delay
 map_button_frame = ttk.Frame(map_frame); map_button_frame.pack(side=tk.BOTTOM, fill="x", pady=2)
 clear_objects_button = ttk.Button(map_button_frame, text="Clear Objects", command=lambda: clear_map_features("detected_object")); clear_objects_button.pack(side=tk.LEFT, padx=5)
 clear_bump_button = ttk.Button(map_button_frame, text="Clear Bump Events", command=lambda: clear_map_features("bump_event")); clear_bump_button.pack(side=tk.LEFT, padx=5)
@@ -1021,14 +1089,17 @@ def on_closing():
     if messagebox.askokcancel("Quit", "Do you want to quit?"):
         disconnect_from_cybot() # Attempt graceful disconnect
         stop_thread_flag.set() # Signal listening thread to stop
-        app.after(200, app.destroy)
+        app.after(200, app.destroy) # Give a moment for threads to close before destroying app
 
 app.protocol("WM_DELETE_WINDOW", on_closing)
-unbind_keys()
+unbind_keys() # Ensure keys are unbound at start if not connected
 
 try:
+    # Initial dummy update to populate sensor status display
     update_sensor_status("BUMP_L=0,BUMP_R=0,CLIFF_L_SIG=0,CLIFF_FL_SIG=0,CLIFF_FR_SIG=0,CLIFF_R_SIG=0,PING=0.0")
-    draw_radar_plot()
+    # Initial draw of radar (will be empty) and map (robot might not be centered if not connected)
+    app.after(100, draw_radar_plot) # Delay to allow canvas to initialize
+    app.after(100, initialize_robot_position) # Try to center robot after canvas is up
 except Exception as e:
     print(f"ERROR during initial GUI update: {e}")
     messagebox.showerror("Startup Error", f"An error occurred during initial GUI setup:\n{e}")
@@ -1037,4 +1108,4 @@ app.mainloop()
 
 # --- Cleanup ---
 print("Application closing.")
-stop_thread_flag.set()
+stop_thread_flag.set() # Final attempt to ensure thread stops
