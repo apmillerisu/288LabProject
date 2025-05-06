@@ -58,7 +58,7 @@ void send_message(const char *message) {
 
 int checkBotSensors(oi_t *sensor_data){
     uint16_t HOLE_THRESHOLD = 400; // Hole threshold
-    uint16_t BORDER_THRESHOLD = 2600; //border threshold
+    uint16_t BORDER_THRESHOLD = 3000; //border threshold
     int stopFlag = 0;
 
     if (sensor_data->bumpLeft || sensor_data->bumpRight) {
@@ -158,11 +158,19 @@ int main(void) {
                     break;
                 case 'a': // Turn left
                     turn_left(sensor_data, 30);
-                    send_message("Turning left");
+                    send_message("Turning left 30 degrees");
                     break;
                 case 'd': // Turn right
                     turn_right(sensor_data, 30);
-                    send_message("Turning right");
+                    send_message("Turning right 30 degrees");
+                    break;
+                case 'z': // Turn left small
+                    turn_left(sensor_data, 10);
+                    send_message("Turning left 10 degrees");
+                    break;
+                case 'c': // Turn right small
+                    turn_right(sensor_data, 10);
+                    send_message("Turning right 10 degrees");
                     break;
                 case 'm': // Perform a scan
                 //something is causing issues. it is not scanning when m is pressed

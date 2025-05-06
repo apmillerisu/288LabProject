@@ -16,7 +16,9 @@ CYBOT_PORT = 288
 CMD_FORWARD = "w\n"
 CMD_BACKWARD = "s\n"
 CMD_LEFT = "a\n"
+CMD_LEFT_SHORT = "z\n"
 CMD_RIGHT = "d\n"
+CMD_RIGHT_SHORT = "c\n"
 CMD_SCAN = "m\n"
 CMD_JINGLE = "j\n"
 CMD_IGNORE = "l\n"
@@ -189,7 +191,9 @@ def handle_keypress(event):
         if key == 'w': send_command(CMD_FORWARD)
         elif key == 's': send_command(CMD_BACKWARD)
         elif key == 'a': send_command(CMD_LEFT)
+        elif key == 'z': send_command(CMD_LEFT_SHORT)
         elif key == 'd': send_command(CMD_RIGHT)
+        elif key == 'c': send_command(CMD_RIGHT_SHORT)
         elif key == 'm': send_command(CMD_SCAN)
         elif key == 'j': send_command(CMD_JINGLE)
         elif key == 'l': send_command(CMD_IGNORE)
@@ -200,7 +204,9 @@ def bind_keys():
     app.bind_all('<KeyPress-w>', handle_keypress)
     app.bind_all('<KeyPress-s>', handle_keypress)
     app.bind_all('<KeyPress-a>', handle_keypress)
+    app.bind_all('<KeyPress-z>', handle_keypress)
     app.bind_all('<KeyPress-d>', handle_keypress)
+    app.bind_all('<KeyPress-c>', handle_keypress)
     app.bind_all('<KeyPress-m>', handle_keypress)
     app.bind_all('<KeyPress-j>', handle_keypress)
     app.bind_all('<KeyPress-l>', handle_keypress)
@@ -211,7 +217,9 @@ def unbind_keys():
     app.unbind_all('<KeyPress-w>')
     app.unbind_all('<KeyPress-s>')
     app.unbind_all('<KeyPress-a>')
+    app.unbind_all('<KeyPress-z>')
     app.unbind_all('<KeyPress-d>')
+    app.unbind_all('<KeyPress-c>')
     app.unbind_all('<KeyPress-m>')
     app.unbind_all('<KeyPress-j>')
     app.unbind_all('<KeyPress-l>')
@@ -973,7 +981,7 @@ def clear_map_features(tag_to_clear):
         # Consider if re-drawing robot is always needed or only on full map reset.
         # For now, let's assume it implies a visual reset, so re-drawing robot at current (x,y) is fine.
         draw_robot_on_map() # Redraw robot after clearing trail (it might have been covered)
-        # initialize_robot_position() # This would reset robot_x, robot_y to map center. Usually not what's wanted when clearing trail.
+        initialize_robot_position() # This would reset robot_x, robot_y to map center. Usually not what's wanted when clearing trail.
 
 
 def draw_robot_on_map(event=None): # event=None allows binding to <Configure>

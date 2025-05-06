@@ -181,13 +181,20 @@ void UART1_Handler(void)
             receiveByte = 'l';
             command_flag = 1;
         }
+        else if (byte_received == 'z'){ // Add case for play song/jingle
+                    receiveByte = 'z';
+                    command_flag = 1;
+        }
+        else if (byte_received == 'c'){ // Add case for play song/jingle
+                    receiveByte = 'c';
+                    command_flag = 1;
+        }
         else {
 
            //AS NEEDED
            //code to handle any other special characters
            //code to update global shared variables
            //DO NOT PUT TIME-CONSUMING CODE IN AN ISR
-
            if (byte_received == command_byte)
            {
              command_flag = 1;
