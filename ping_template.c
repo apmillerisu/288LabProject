@@ -146,7 +146,7 @@ float ping_getDistance (void){
     distance =((time * 343.0) / 2.0) * 100.0;
     g_state = LOW;
 
-	lcd_printf("pulse width: %.2lu\nOverflow: %d\nDistance: %.2f\n", pulse_width, overflow, distance);
+	//lcd_printf("pulse width: %.2lu\nOverflow: %d\nDistance: %.2f\n", pulse_width, overflow, distance);
 
 
 	return distance;
