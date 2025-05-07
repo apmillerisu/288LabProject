@@ -390,7 +390,7 @@ def update_sensor_status(status_string):
     cliff_l_sig_val_str, cliff_fl_sig_val_str, cliff_fr_sig_val_str, cliff_r_sig_val_str = "N/A", "N/A", "N/A", "N/A"
     cliff_l_color, cliff_fl_color, cliff_fr_color, cliff_r_color = "grey", "grey", "grey", "grey"
     ping_val = "N/A"
-    heading_val = 0;
+    heading_val = "N/A" # <<< MODIFIED: Initialize heading_val
 
     try:
         parts = status_string.split(',')
@@ -435,14 +435,18 @@ def update_sensor_status(status_string):
                 elif key == "PING":
                     try: ping_val = f"{float(value_str):.1f}"
                     except ValueError: ping_val = "Invalid"
-                elif key == "Heading":
-                    try: heading_val = int(value_str)
-                    except ValueError: heading_val = "Invalid"
+                elif key == "Heading": # This part was already in your code
+                    try:
+                        # Format as integer degrees directly
+                        heading_val = f"{int(value_str)}°"
+                    except ValueError:
+                        heading_val = "Invalid"
 
     except Exception as e:
         print(f"Error parsing status string '{status_string}': {e}")
         cliff_l_sig_val_str, cliff_fl_sig_val_str, cliff_fr_sig_val_str, cliff_r_sig_val_str = "Err", "Err", "Err", "Err"
         ping_val = "Err"
+        heading_val = "Err" # Ensure heading_val is also set in case of an earlier error
         cliff_l_color, cliff_fl_color, cliff_fr_color, cliff_r_color = "grey", "grey", "grey", "grey"
 
     # Update GUI Elements
@@ -454,12 +458,15 @@ def update_sensor_status(status_string):
         sensor_canvas.itemconfig("cliff_fr_indicator", fill=cliff_fr_color)
         sensor_canvas.itemconfig("cliff_r_indicator", fill=cliff_r_color)
     except tk.TclError as e:
-        print(f"Error updating cliff indicator colors: {e}") # Should not happen if tags are correct
+        print(f"Error updating cliff indicator colors: {e}")
     cliff_l_sig_label.config(text=f"L: {cliff_l_sig_val_str}")
     cliff_fl_sig_label.config(text=f"FL: {cliff_fl_sig_val_str}")
     cliff_fr_sig_label.config(text=f"FR: {cliff_fr_sig_val_str}")
     cliff_r_sig_label.config(text=f"R: {cliff_r_sig_val_str}")
-    ping_label.config(text=f"Ping: {ping_val} cm Heading: {heading_val} degrees")
+    
+    # Your existing ping_label will now correctly include the heading
+    # The format "degrees" was already in your code for the label, so I'll use "°" from parsing.
+    ping_label.config(text=f"Ping: {ping_val} cm  Heading: {heading_val}")
     
 
 def append_scan_data(scan_data_string, is_mock_data=False):

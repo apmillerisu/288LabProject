@@ -20,20 +20,22 @@ extern volatile char receiveByte;
 extern volatile int stopFlag;
 //int rightCalVal;
 //int leftCalVal;
+int currentHeading;
 
 // Function to send a formatted sensor message over UART
 void send_sensor_data(oi_t *sensor_data, float ping_distance) {
     char buffer[256]; // Ensure buffer is large enough
 
     // Updated sprintf format string using EXISTING integer signal fields
-    sprintf(buffer, "STATUS:BUMP_L=%d,BUMP_R=%d,CLIFF_L_SIG=%u,CLIFF_FL_SIG=%u,CLIFF_FR_SIG=%u,CLIFF_R_SIG=%u,PING=%.2f\n",
+    sprintf(buffer, "STATUS:BUMP_L=%d,BUMP_R=%d,CLIFF_L_SIG=%u,CLIFF_FL_SIG=%u,CLIFF_FR_SIG=%u,CLIFF_R_SIG=%u,PING=%.2f, Heading=%d\n",
             sensor_data->bumpLeft,
             sensor_data->bumpRight,
             sensor_data->cliffLeftSignal,       // Use existing integer value
             sensor_data->cliffFrontLeftSignal,  // Use existing integer value
             sensor_data->cliffFrontRightSignal, // Use existing integer value
             sensor_data->cliffRightSignal,      // Use existing integer value
-            ping_distance);
+            ping_distance,
+            currentHeading);
     uart_sendStr(buffer);
 }
 
@@ -114,8 +116,12 @@ int main(void) {
 //    leftCalVal = 285000; //2041-1
 //    rightCalVal = 311500; //2041-15
 //    leftCalVal = 283500; //2041-15
-    rightCalVal = 311500; //2041-0
-    leftCalVal = 284500; //2041-0
+//    rightCalVal = 311500; //2041-0
+//    leftCalVal = 284500; //2041-0
+//    rightCalVal = 311000; //2041-10
+//    leftCalVal = 283000; //2041-10
+    rightCalVal = 313000; //2041-8
+    leftCalVal = 285500; //2041-8
 
 
 //    servoCal();
@@ -133,6 +139,7 @@ int main(void) {
     int ir_raw_value; // To store the raw IR ADC value
     int stopFlag = 0;
     int ignoreSensors = 0;
+    currentHeading = 0;
 
 
 
@@ -163,19 +170,23 @@ int main(void) {
                     break;
                 case 'a': // Turn left
                     turn_left(sensor_data, 30);
+                    currentHeading -=30;
                     send_message("Turning left 30 degrees");
                     break;
                 case 'd': // Turn right
                     turn_right(sensor_data, 30);
                     send_message("Turning right 30 degrees");
+                    currentHeading += 30;
                     break;
                 case 'z': // Turn left small
                     turn_left(sensor_data, 10);
                     send_message("Turning left 10 degrees");
+                    currentHeading -=10;
                     break;
                 case 'c': // Turn right small
                     turn_right(sensor_data, 10);
                     send_message("Turning right 10 degrees");
+                    currentHeading +=10;
                     break;
                 case 'm': // Perform a scan
                 //something is causing issues. it is not scanning when m is pressed
