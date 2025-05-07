@@ -58,6 +58,12 @@ void send_message(const char *message) {
     uart_sendStr(buffer);
 }
 
+void send_movemessage(float degree, float movement){
+    char buffer[100];
+    sprintf(buffer, "MOVE: ANGLE_DEG=%.2f,DIST_CM=%.2f\n", degree,movement);
+    uart_sendStr(buffer);
+}
+
 int checkBotSensors(oi_t *sensor_data){
     uint16_t HOLE_THRESHOLD = 400; // Hole threshold
     uint16_t BORDER_THRESHOLD =  2600; //border threshold
@@ -160,32 +166,32 @@ int main(void) {
                 case 'w': // Move forward
                     if(stopFlag == 0 || ignoreSensors ==1){
                     move_forward(sensor_data, 100); // Move 100 mm (adjust as needed)
-                    send_message("Moving forward");
+                    send_movemessage(0.0,10);
                     } else { send_message("Stop Flag set, check sensors. Cannot move forward"); }
                     break;
                 case 's': // Move backward
                     move_backward(sensor_data, 100);
                     stopFlag = 0; //reset stopflag because we moved backward
-                    send_message("Moving backward");
+                    send_movemessage(0.0,-10.0);
                     break;
                 case 'a': // Turn left
                     turn_left(sensor_data, 30);
                     currentHeading -=30;
-                    send_message("Turning left 30 degrees");
+                    send_movemessage(-30.0,0.0);
                     break;
                 case 'd': // Turn right
                     turn_right(sensor_data, 30);
-                    send_message("Turning right 30 degrees");
+                    send_movemessage(30.0,0.0);
                     currentHeading += 30;
                     break;
                 case 'z': // Turn left small
                     turn_left(sensor_data, 10);
-                    send_message("Turning left 10 degrees");
+                    send_movemessage(-10.0,0.0);
                     currentHeading -=10;
                     break;
                 case 'c': // Turn right small
                     turn_right(sensor_data, 10);
-                    send_message("Turning right 10 degrees");
+                    send_movemessage(10.0,0.0);
                     currentHeading +=10;
                     break;
                 case 'm': // Perform a scan
