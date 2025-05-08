@@ -21,6 +21,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include "driverlib/interrupt.h"
+#include "open_interface.h"
 
 
 // Notice that interrupt.h provides library function prototypes for IntMasterEnable() and IntRegister()
@@ -33,6 +34,7 @@
 extern volatile char command_byte; // byte value for special character used as a command
 extern volatile int command_flag; // flag to tell the main program a special command was received
 extern volatile char receiveByte;
+extern volatile int currentHeading;
 
 // UART1 device initialization for CyBot to PuTTY
 void uart_interrupt_init(void);
@@ -51,5 +53,13 @@ void uart_sendStr(const char *data);
 
 // Interrupt handler for receive interrupts
 void UART1_Handler(void);
+
+void send_sensor_data(oi_t *sensor_data, float ping_distance);
+
+void send_scan_data(float angle, float distance_cm, int ir_raw);
+
+void send_message(const char *message);
+
+void send_movemessage(float degree, float movement);
 
 #endif /* UART_H_ */

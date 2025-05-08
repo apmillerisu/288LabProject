@@ -40,7 +40,6 @@ void ping_init (void){
     IntMasterEnable();
 
     // Configure and enable the timer
-    //TIMER3_CTL_R &= 0x9F90;
     GPIO_PORTB_AFSEL_R |= 0x8;
     GPIO_PORTB_PCTL_R |= 0x7000;
     SYSCTL_RCGCTIMER_R |= BIT3;
@@ -83,15 +82,6 @@ void ping_trigger (void){
 
 void TIMER3B_Handler(void){
 
-  // YOUR CODE HERE
-  // As needed, go back to review your interrupt handler code for the UART lab.
-  // What are the first lines of code in the ISR? Regardless of the device, interrupt handling
-  // includes checking the source of the interrupt and clearing the interrupt status bit.
-  // Checking the source: test the MIS bit in the MIS register (is the ISR executing
-  // because the input capture event happened and interrupts were enabled for that event?
-  // Clearing the interrupt: set the ICR bit (so that same event doesn't trigger another interrupt)
-  // The rest of the code in the ISR depends on actions needed when the event happens.
-
     if(TIMER3_MIS_R & 0x400){ //if interrupt happen
 
         TIMER3_ICR_R |= 0x0400;
@@ -101,14 +91,7 @@ void TIMER3B_Handler(void){
         } else if(g_state == HIGH){
             g_state = DONE;
             g_end_time = TIMER3_TBV_R;
-            //lcd_printf("start time:%.2lu\n end time: %.2lu", g_start_time, g_end_time);
         }
-        //lcd_printf("shit\n");
-        //lcd_printf("start time:%.2lu\n end time: %.2lu", g_start_time, g_end_time);
-        //timer_waitMillis(500); //don't call this shit in here I guess
-        //update_flag = 1;
-
-
     }
 
 }
@@ -123,11 +106,6 @@ float ping_getDistance (void){
 
     // YOUR CODE HERE
     ping_trigger();
-//    if(g_state == DONE){
-//        overflow = g_end_time - g_start_time;
-//        time_diff = ((unsigned long)overflow<<24) + g_end_time – g_start_time;
-//        g_state = LOW;
-//    }
 	while(g_state != DONE){
 		//wait until ISR done, sit here
 	}
@@ -145,8 +123,6 @@ float ping_getDistance (void){
 
     distance =((time * 343.0) / 2.0) * 100.0;
     g_state = LOW;
-
-	//lcd_printf("pulse width: %.2lu\nOverflow: %d\nDistance: %.2f\n", pulse_width, overflow, distance);
 
 
 	return distance;

@@ -18,91 +18,8 @@
 extern volatile int command_flag;
 extern volatile char receiveByte;
 extern volatile int stopFlag;
-//int rightCalVal;
-//int leftCalVal;
-int currentHeading;
+extern volatile int currentHeading;
 
-// Function to send a formatted sensor message over UART
-void send_sensor_data(oi_t *sensor_data, float ping_distance) {
-    char buffer[256]; // Ensure buffer is large enough
-
-    // Updated sprintf format string using EXISTING integer signal fields
-    sprintf(buffer, "STATUS:BUMP_L=%d,BUMP_R=%d,CLIFF_L_SIG=%u,CLIFF_FL_SIG=%u,CLIFF_FR_SIG=%u,CLIFF_R_SIG=%u,PING=%.2f, Heading=%d\n",
-            sensor_data->bumpLeft,
-            sensor_data->bumpRight,
-            sensor_data->cliffLeftSignal,       // Use existing integer value
-            sensor_data->cliffFrontLeftSignal,  // Use existing integer value
-            sensor_data->cliffFrontRightSignal, // Use existing integer value
-            sensor_data->cliffRightSignal,      // Use existing integer value
-            ping_distance,
-            currentHeading);
-    uart_sendStr(buffer);
-}
-
-// Function to send a formatted scan data message over UART
-void send_scan_data(float angle, float distance_cm, int ir_raw) {
-    char buffer[128];
-    if(angle > 180){
-        sprintf(buffer, "SCAN: END Scan\n");
-        uart_sendStr(buffer);
-    } else {
-        sprintf(buffer, "SCAN:ANGLE=%.2f,DIST_CM=%.2f,IR_RAW=%d\n", angle, distance_cm, ir_raw);
-        uart_sendStr(buffer);
-    }
-}
-
-// Function to send a simple message
-void send_message(const char *message) {
-    char buffer[100];
-    sprintf(buffer, "INFO:%s\n", message);
-    uart_sendStr(buffer);
-}
-
-void send_movemessage(float degree, float movement){
-    char buffer[100];
-    sprintf(buffer, "MOVE: ANGLE_DEG=%.2f,DIST_CM=%.2f\n", degree,movement);
-    uart_sendStr(buffer);
-}
-
-int checkBotSensors(oi_t *sensor_data){
-    uint16_t HOLE_THRESHOLD = 400; // Hole threshold
-    uint16_t BORDER_THRESHOLD =  2600; //border threshold
-    int stopFlag = 0;
-
-    if (sensor_data->bumpLeft || sensor_data->bumpRight) {
-                        oi_setWheels(0, 0); // Stop
-                        stopFlag = 1;
-                        send_message("Bump sensor triggered! Stopped.");
-                        // Optional: Add reaction logic like bumpDetect(sensor_data);
-            }
-                   // Cliff hole detection
-                    // Check if any cliff signal is below hole threshold
-            else if (sensor_data->cliffLeftSignal < HOLE_THRESHOLD ||
-                        sensor_data->cliffFrontLeftSignal < HOLE_THRESHOLD ||
-                        sensor_data->cliffFrontRightSignal < HOLE_THRESHOLD ||
-                        sensor_data->cliffRightSignal < HOLE_THRESHOLD)
-                    {
-                         oi_setWheels(0, 0); // Stop
-                         stopFlag = 1;
-                         send_message("Cliff Hole Detected! Stopped.");
-                         // Optional: Add backup/turn logic here
-
-                    } // if any cliff sensor is above border threshold
-                    else if (sensor_data->cliffLeftSignal > BORDER_THRESHOLD ||
-                            sensor_data->cliffFrontLeftSignal > BORDER_THRESHOLD ||
-                            sensor_data->cliffFrontRightSignal > BORDER_THRESHOLD ||
-                            sensor_data->cliffRightSignal > BORDER_THRESHOLD)
-                    {
-                       oi_setWheels(0, 0); // Stop
-                       stopFlag = 1;
-                       send_message("Cliff Border Detected! Stopped.");
-                    } else {
-                        stopFlag = 0;
-                    }
-
-
-    return stopFlag;
-}
 
 int main(void) {
     // Initialize hardware modules
@@ -137,7 +54,7 @@ int main(void) {
 //    servoCal();
 //    return 0;
 
-    // Initialize iRobot OI
+    // Initialize OI stuff
     oi_t *sensor_data = oi_alloc();
     oi_init(sensor_data);
     setup_ice_cream_jingle();
@@ -146,7 +63,7 @@ int main(void) {
     // Declare variables
     float distance;
     int i;
-    int ir_raw_value; // To store the raw IR ADC value
+    int ir_raw_value;
     int stopFlag = 0;
     int ignoreSensors = 0;
     currentHeading = 0;
@@ -166,7 +83,6 @@ int main(void) {
         if (command_flag == 1) {
             // A command has been received
             command_flag = 0; // Clear the flag immediately
-            //botByte = uart_receive(); //use receiveByte
             switch (receiveByte) { // Use a switch statement for multiple commands
                 case 'w': // Move forward
                     if(stopFlag == 0 || ignoreSensors ==1){
@@ -208,9 +124,6 @@ int main(void) {
                         turnDegree(i);
                         timer_waitMillis(100); // Wait for servo to settle
                         distance = ping_getDistance();
-                        // Get IR sensor value (assuming you have adc_read() or similar)
-                        // ir_raw_value = adc_read();  // Replace with your actual ADC read function
-                         //For simplicity, let's assume  ir_raw_value is between 0-4095
                         ir_raw_value = get_avgADC(2);
                         send_scan_data(i, distance, ir_raw_value); // Send scan data
                     }

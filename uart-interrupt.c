@@ -8,24 +8,19 @@
 *   @date
 */
 
-// The "???" placeholders should be the same as in your uart.c file.
-// The "?????" placeholders are new in this file and must be replaced.
-
 #include <inc/tm4c123gh6pm.h>
 #include <stdint.h>
 #include "uart-interrupt.h"
 #include <stdbool.h>
 #include "driverlib/interrupt.h"
 
-#define BIT2 0x2
-
 // These variables are declared as examples for your use in the interrupt handler.
 volatile char command_byte = -1; // byte value for special character used as a command
 volatile int command_flag = 0; // flag to tell the main program a special command was received
 volatile char receiveByte = 0;
+volatile int currentHeading;
 
 void uart_interrupt_init(void){
-    //TODO
  //enable clock to GPIO port B
  SYSCTL_RCGCGPIO_R |= BIT2;
 
@@ -91,19 +86,13 @@ void uart_interrupt_init(void){
  IntMasterEnable();
 
  //re-enable UART1 and also enable RX, TX (three bits)
- //note from the datasheet UARTCTL register description:
- //RX and TX are enabled by default on reset
- //Good to be explicit in your code
- //Be careful to not clear RX and TX enable bits
- //(either preserve if already set or set them)
  UART1_CTL_R = 0x301;
 
 }
 
 void uart_sendChar(char data){
-    //TODO
-    while(UART1_FR_R & 0x20){
-    }
+
+    while(UART1_FR_R & 0x20){}
 
     UART1_DR_R = data;
 }
@@ -120,7 +109,6 @@ char uart_receive(void){
 }
 
 void uart_sendStr(const char *data){
-    //TODO for reference see lcd_puts from lcd.c file
     while(*data != '\0'){
         uart_sendChar(*data);
         data++;
@@ -138,7 +126,7 @@ void UART1_Handler(void)
        //clear the RX trigger flag (clear by writing 1 to ICR)
        UART1_ICR_R |= 0b00010000;
 
-       //read the byte received from UART1_DR_R and echo it back to PuTTY
+       //read the byte received from UART1_DR_R and echo it back
        //ignore the error bits in UART1_DR_R
        byte_received = UART1_DR_R;
        uart_sendChar(byte_received);
@@ -146,7 +134,7 @@ void UART1_Handler(void)
        //if byte received is a carriage return
        if (byte_received == '\r')
        {
-           //send a newline character back to PuTTY
+           //send a newline character back
            uart_sendChar('\n');
        }
        else if (byte_received == 'g'){
@@ -202,4 +190,48 @@ void UART1_Handler(void)
        }
    }
 
+}
+
+
+// Function to send a formatted sensor message over UART
+void send_sensor_data(oi_t *sensor_data, float ping_distance) {
+    char buffer[256]; // Ensure buffer is large enough
+
+    // Updated sprintf format string using EXISTING integer signal fields
+    sprintf(buffer, "STATUS:BUMP_L=%d,BUMP_R=%d,CLIFF_L_SIG=%u,CLIFF_FL_SIG=%u,CLIFF_FR_SIG=%u,CLIFF_R_SIG=%u,PING=%.2f, Heading=%d\n",
+            sensor_data->bumpLeft,
+            sensor_data->bumpRight,
+            sensor_data->cliffLeftSignal,
+            sensor_data->cliffFrontLeftSignal,
+            sensor_data->cliffFrontRightSignal,
+            sensor_data->cliffRightSignal,
+            ping_distance,
+            currentHeading);
+    uart_sendStr(buffer);
+}
+
+// Function to send a formatted scan data message over UART
+void send_scan_data(float angle, float distance_cm, int ir_raw) {
+    char buffer[128];
+    if(angle > 180){
+        sprintf(buffer, "SCAN: END Scan\n");
+        uart_sendStr(buffer);
+    } else {
+        sprintf(buffer, "SCAN:ANGLE=%.2f,DIST_CM=%.2f,IR_RAW=%d\n", angle, distance_cm, ir_raw);
+        uart_sendStr(buffer);
+    }
+}
+
+// Function to send a simple message
+void send_message(const char *message) {
+    char buffer[100];
+    sprintf(buffer, "INFO:%s\n", message);
+    uart_sendStr(buffer);
+}
+
+//function to send movement message
+void send_movemessage(float degree, float movement){
+    char buffer[100];
+    sprintf(buffer, "MOVE: ANGLE_DEG=%.2f,DIST_CM=%.2f\n", degree,movement);
+    uart_sendStr(buffer);
 }

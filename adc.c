@@ -44,9 +44,6 @@ int get_ADC(void){
     return result;
 }
 
-//void adc_cal(void){
-//
-//}
 
 int get_avgADC(int avgNum){
     int sum = 0;
