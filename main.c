@@ -149,9 +149,6 @@ int main(void) {
             receiveByte = '\0';
         }
 
-
-
-
         // Add a small delay to control loop frequency
         timer_waitMillis(100);
     }

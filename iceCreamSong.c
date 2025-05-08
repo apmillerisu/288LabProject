@@ -13,10 +13,7 @@
 #define DURATION_QUARTER 16
 #define DURATION_EIGHTH 8
 
-/**
- * @brief Defines the ice cream jingle using oi_loadSong.
- * Call this once during initialization AFTER oi_init.
- */
+
 void setup_ice_cream_jingle() {
     // Define the notes and durations arrays
     unsigned char notes[ICE_CREAM_SONG_LEN] = {
@@ -37,14 +34,8 @@ void setup_ice_cream_jingle() {
     timer_waitMillis(100);
 }
 
-/**
- * @brief Plays the previously defined ice cream jingle using oi_play_song.
- * Call this when the robot reaches the destination.
- */
+
 void trigger_ice_cream_jingle() {
     oi_play_song(ICE_CREAM_SONG_NUM);
 
-    // Optional delay: The song takes approx 2 seconds.
-    // You might wait here or let the program continue while it plays.
-    // timer_waitMillis(2000);
 }
