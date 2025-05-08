@@ -126,8 +126,12 @@ int main(void) {
 //    leftCalVal = 284500; //2041-0
 //    rightCalVal = 311000; //2041-10
 //    leftCalVal = 283000; //2041-10
-    rightCalVal = 313000; //2041-8
-    leftCalVal = 285500; //2041-8
+//    rightCalVal = 313000; //2041-8
+//    leftCalVal = 285500; //2041-8
+//    rightCalVal = 312000; //2041-13
+//    leftCalVal = 285500; //2041-13
+    rightCalVal = 312000; //2041-12
+    leftCalVal = 286000; //2041-12
 
 
 //    servoCal();
@@ -146,6 +150,7 @@ int main(void) {
     int stopFlag = 0;
     int ignoreSensors = 0;
     currentHeading = 0;
+    double scaledDegree = 0.87;
 
 
 
@@ -175,22 +180,22 @@ int main(void) {
                     send_movemessage(0.0,-10.0);
                     break;
                 case 'a': // Turn left
-                    turn_left(sensor_data, 30);
+                    turn_left(sensor_data, 30*scaledDegree);
                     currentHeading -=30;
                     send_movemessage(-30.0,0.0);
                     break;
                 case 'd': // Turn right
-                    turn_right(sensor_data, 30);
+                    turn_right(sensor_data, 30*scaledDegree);
                     send_movemessage(30.0,0.0);
                     currentHeading += 30;
                     break;
                 case 'z': // Turn left small
-                    turn_left(sensor_data, 10);
+                    turn_left(sensor_data, 10*scaledDegree);
                     send_movemessage(-10.0,0.0);
                     currentHeading -=10;
                     break;
                 case 'c': // Turn right small
-                    turn_right(sensor_data, 10);
+                    turn_right(sensor_data, 10*scaledDegree);
                     send_movemessage(10.0,0.0);
                     currentHeading +=10;
                     break;
